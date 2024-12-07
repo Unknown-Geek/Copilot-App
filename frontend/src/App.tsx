@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import { Dashboard } from './pages/Dashboard'
 import { Documentation } from './pages/Documentation'
 import { Login } from './pages/Login'
+import { AuthCallback } from './pages/AuthCallback'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/docs" element={<Documentation />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
           </Routes>
         </main>
       </div>

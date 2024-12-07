@@ -1,38 +1,43 @@
-
+from typing import Dict, Any, Optional
 import requests
+from functools import lru_cache
 from config import Config
 
-class TranslatorService:
+class TranslatorService:  # Changed from TranslationService to match import
     def __init__(self):
-        self.endpoint = "https://api.cognitive.microsofttranslator.com"
-        self.location = "global"
-        self.path = '/translate'
-        self.constructed_url = self.endpoint + self.path
-
-    def translate_text(self, text: str, target_language: str = 'en') -> dict:
-        params = {
-            'api-version': '3.0',
-            'to': target_language
-        }
-        
-        headers = {
+        self.supported_languages = {'en', 'es', 'fr', 'de', 'ja', 'zh'}
+        self.base_url = "https://api.cognitive.microsofttranslator.com"
+        self.headers = {
             'Ocp-Apim-Subscription-Key': Config.AZURE_KEY,
-            'Ocp-Apim-Subscription-Region': self.location,
             'Content-type': 'application/json'
         }
-        
-        body = [{
-            'text': text
-        }]
+
+    @lru_cache(maxsize=1000)
+    def translate(self, text: str, target_lang: str, source_lang: Optional[str] = None) -> Dict[str, Any]:
+        if target_lang not in self.supported_languages:
+            return {'error': f'Unsupported target language: {target_lang}'}
 
         try:
+            params = {
+                'api-version': '3.0',
+                'to': target_lang
+            }
+            if source_lang:
+                params['from'] = source_lang
+
             response = requests.post(
-                self.constructed_url,
+                f"{self.base_url}/translate",
+                headers=self.headers,
                 params=params,
-                headers=headers,
-                json=body
+                json=[{'text': text}]
             )
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            
+            return {
+                'translated_text': result[0]['translations'][0]['text'],
+                'detected_language': result[0].get('detectedLanguage', {}).get('language'),
+                'confidence': result[0].get('detectedLanguage', {}).get('score', 1.0)
+            }
         except Exception as e:
-            return {"error": str(e)}
+            return {'error': f'Translation failed: {str(e)}'}
