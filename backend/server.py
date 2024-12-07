@@ -6,16 +6,17 @@ import os
 from dotenv import load_dotenv
 import sys
 
-load_dotenv()
+# Update path to look for .env in root directory
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
 app = Flask(__name__)
 CORS(app)
 
 try:
     print("Loading configuration...")
-    if not os.path.exists('.env'):
+    if not os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')):
         raise FileNotFoundError(
-            ".env file not found. Please create one with AZURE_KEY, AZURE_ENDPOINT, and GITHUB_TOKEN"
+            ".env file not found in root directory. Please create one with AZURE_KEY, AZURE_ENDPOINT, and GITHUB_TOKEN"
         )
     
     Config.validate()
