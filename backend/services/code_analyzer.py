@@ -1,25 +1,76 @@
-
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.core.credentials import AzureKeyCredential
 from config import Config
 
 class CodeAnalyzer:
     def __init__(self):
+        if not Config.AZURE_KEY or not Config.AZURE_ENDPOINT:
+            raise ValueError("Azure credentials not properly configured")
+        
         self.client = TextAnalyticsClient(
             endpoint=Config.AZURE_ENDPOINT,
-            credential=AzureKeyCredential(Config.AZURE_KEY)
+            credential=AzureKeyCredential(Config.AZURE_KEY.strip())
         )
+        self.language_map = {
+            'python': 'en',
+            'javascript': 'en',
+            'typescript': 'en',
+            'java': 'en'
+        }
 
     def analyze_code(self, code: str, language: str) -> dict:
         try:
-            response = self.client.analyze_text(
-                documents=[code],
-                language=language
+            azure_lang = self.language_map.get(language.lower(), 'en')
+            documents = [{"id": "1", "text": code, "language": azure_lang}]
+            
+            response = self.client.analyze_sentiment(
+                documents=documents
             )
             return self._process_analysis(response)
         except Exception as e:
-            return {"error": str(e)}
+            return {
+                "error": str(e),
+                "status": "error",
+                "details": "Failed to analyze code"
+            }
 
     def _process_analysis(self, response):
-        # Process Azure analysis response
-        return {"analysis": response}
+        try:
+            results = []
+            for doc in response:
+                if doc.is_error:
+                    return {
+                        "status": "error",
+                        "error": f"Document analysis failed: {doc.error}"
+                    }
+                
+                analysis = {
+                    "status": "success",
+                    "sentiment": doc.sentiment,
+                    "confidence_scores": {
+                        "positive": doc.confidence_scores.positive,
+                        "neutral": doc.confidence_scores.neutral,
+                        "negative": doc.confidence_scores.negative
+                    },
+                    "sentences": [{
+                        "text": sent.text,
+                        "sentiment": sent.sentiment,
+                        "confidence_scores": {
+                            "positive": sent.confidence_scores.positive,
+                            "neutral": sent.confidence_scores.neutral,
+                            "negative": sent.confidence_scores.negative
+                        }
+                    } for sent in doc.sentences]
+                }
+                results.append(analysis)
+            
+            return results[0] if results else {
+                "status": "error",
+                "error": "No analysis results"
+            }
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": f"Failed to process analysis: {str(e)}"
+            }
