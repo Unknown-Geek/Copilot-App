@@ -1,23 +1,20 @@
 from flask import Flask
 from flask_cors import CORS
-from api import create_app
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient
-from azure.functions import FunctionApp
-from middleware import auth_middleware
+from routes.api import api
+from config import Config
+import os
+from dotenv import load_dotenv
 
-app = create_app()
+load_dotenv()
+
+app = Flask(__name__)
 CORS(app)
 
-# Initialize Azure services
-credential = DefaultAzureCredential()
-blob_service = BlobServiceClient(
-    account_url="<your-storage-account-url>",
-    credential=credential
-)
+# Validate configuration
+Config.validate()
 
-# Add authentication middleware
-app.before_request(auth_middleware)
+# Register blueprints
+app.register_blueprint(api, url_prefix='/api')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
