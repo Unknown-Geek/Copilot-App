@@ -1,0 +1,6 @@
+# .env.example
+AZURE_KEY=your_azure_key_here
+AZURE_ENDPOINT=your_azure_endpoint_here
+GITHUB_TOKEN=your_github_token_here
+GITHUB_CLIENT_ID=your_client_id_here
+GITHUB_CLIENT_SECRET=your_client_secret_here

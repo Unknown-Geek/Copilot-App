@@ -36,6 +36,10 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
-backend/venv
-backend/.env
+*.pyc
+__pycache__/
 .env
+.env.*
+!.env.example
+backend/.env
+backend/venv/
