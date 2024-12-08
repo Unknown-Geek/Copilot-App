@@ -1,7 +1,7 @@
 import ast
 from typing import List, Dict, Any
 from models.documentation import Documentation, CodeBlock
-from datetime import datetime
+import datetime
 import re
 import logging
 
@@ -26,7 +26,7 @@ class DocumentationGenerator:
                 title=self._extract_title(blocks),
                 description=self._extract_description(blocks),
                 code_blocks=blocks,
-                generated_at=datetime.utcnow().isoformat(),
+                generated_at=datetime.datetime.now(datetime.UTC).isoformat(),
                 language=language
             )
         except Exception as e:
@@ -40,17 +40,22 @@ class DocumentationGenerator:
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
                     blocks.append(CodeBlock(
-                        content=ast.get_source_segment(code, node),
+                        content=ast.get_source_segment(code, node) or str(node),
                         language='python',
-                        line_number=node.lineno
+                        line_number=getattr(node, 'lineno', 0)
                     ))
-                elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                    # Capture docstrings
-                    blocks.append(CodeBlock(
-                        content=node.value.value,
-                        language='text',
-                        line_number=node.lineno
-                    ))
+                # Updated for Python 3.14 compatibility
+                elif isinstance(node, ast.Expr) and isinstance(node.value, (ast.Constant, ast.Str)):
+                    # Handle both old ast.Str and new ast.Constant
+                    docstring = (node.value.value 
+                               if isinstance(node.value, ast.Constant) 
+                               else node.value.s)
+                    if isinstance(docstring, str):
+                        blocks.append(CodeBlock(
+                            content=docstring,
+                            language='text',
+                            line_number=getattr(node, 'lineno', 0)
+                        ))
         except Exception as e:
             raise ValueError(f"Python parsing failed: {str(e)}")
         return blocks
