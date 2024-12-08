@@ -64,7 +64,16 @@ class DocumentationGenerator:
             
         Returns:
             Documentation: Generated documentation object
+            
+        Raises:
+            ValueError: If source_code is empty or language is not supported
         """
+        if not source_code or source_code.isspace():
+            raise ValueError("Code cannot be empty")
+            
+        if not isinstance(source_code, str):
+            raise ValueError("Code must be a string")
+
         if language not in self.supported_languages:
             raise ValueError(f"Unsupported language: {language}")
 
@@ -118,60 +127,71 @@ class DocumentationGenerator:
         
         return content
 
-    def _parse_python(self, source_code: str) -> List[CodeBlock]:
-        """Parse Python source code and extract code blocks with documentation."""
-        code_blocks = []
-        lines = source_code.split('\n')
-        
+    def _parse_python(self, code: str) -> List[CodeBlock]:
+        """Parse Python code into code blocks."""
+        blocks = []
+        lines = code.split('\n')
         current_block = []
-        for i, line in enumerate(lines, 1):
-            if line.strip().startswith(('def ', 'class ')):
+        line_number = 1
+
+        for line in lines:
+            stripped = line.strip()
+            # Detect function or class definitions
+            if stripped.startswith('def ') or stripped.startswith('class '):
                 if current_block:
-                    code_blocks.append(CodeBlock(
+                    blocks.append(CodeBlock(
                         content='\n'.join(current_block),
                         language='python',
-                        line_number=i - len(current_block)
+                        line_number=line_number - len(current_block)
                     ))
                 current_block = [line]
             elif current_block:
                 current_block.append(line)
-                
-        # Add the last block if exists
+            line_number += 1
+
+        # Add the last block
         if current_block:
-            code_blocks.append(CodeBlock(
+            blocks.append(CodeBlock(
                 content='\n'.join(current_block),
                 language='python',
-                line_number=len(lines) - len(current_block) + 1
+                line_number=line_number - len(current_block)
             ))
-            
-        return code_blocks
 
-    def _parse_javascript(self, source_code: str) -> List[CodeBlock]:
-        """Parse JavaScript/TypeScript source code."""
-        code_blocks = []
-        lines = source_code.split('\n')
-        
+        return blocks
+
+    def _parse_javascript(self, code: str) -> List[CodeBlock]:
+        """Parse JavaScript/TypeScript code into code blocks."""
+        blocks = []
+        lines = code.split('\n')
         current_block = []
-        for i, line in enumerate(lines, 1):
-            if re.match(r'^\s*(function|class|const\s+\w+\s*=\s*function|interface|type\s+\w+\s*=)', line):
+        line_number = 1
+
+        for line in lines:
+            stripped = line.strip()
+            # Detect function or class definitions
+            if (stripped.startswith('function ') or 
+                stripped.startswith('class ') or 
+                stripped.startswith('const ') and '=> {' in stripped):
                 if current_block:
-                    code_blocks.append(CodeBlock(
+                    blocks.append(CodeBlock(
                         content='\n'.join(current_block),
                         language='javascript',
-                        line_number=i - len(current_block)
+                        line_number=line_number - len(current_block)
                     ))
                 current_block = [line]
             elif current_block:
                 current_block.append(line)
-                
+            line_number += 1
+
+        # Add the last block
         if current_block:
-            code_blocks.append(CodeBlock(
+            blocks.append(CodeBlock(
                 content='\n'.join(current_block),
                 language='javascript',
-                line_number=len(lines) - len(current_block) + 1
+                line_number=line_number - len(current_block)
             ))
-            
-        return code_blocks
+
+        return blocks
 
     def _parse_java(self, source_code: str) -> List[CodeBlock]:
         """Parse Java source code and extract code blocks."""
