@@ -88,5 +88,37 @@ class TestClass:
             output_path = os.path.join(temp_dir, 'doc.md')
             doc_generator.export_to_markdown(doc, output_path)
 
+    def test_advanced_metrics(self):
+        """Test advanced metrics calculation"""
+        doc = self.generator.generate(self.test_code, "python")
+        for block in doc.code_blocks:
+            metrics = self.generator._calculate_advanced_metrics(block)
+            # Basic metrics should always be present
+            self.assertIn('loc', metrics)
+            self.assertIn('sloc', metrics)
+            self.assertIn('comments', metrics)
+            self.assertIn('complexity', metrics)
+            self.assertIn('token_count', metrics)
+            self.assertIn('char_count', metrics)
+            
+            # Advanced metrics may be present if radon is available
+            if self.generator.RADON_AVAILABLE:
+                self.assertIn('cognitive_complexity', metrics)
+                self.assertIn('maintainability_index', metrics)
+                self.assertIn('halstead_metrics', metrics)
+
+    def test_language_specific_parsing(self):
+        """Test language-specific parsing features"""
+        test_codes = {
+            'python': ('def test(): pass', ['function']),
+            'javascript': ('function test() {}', ['function']),
+            'java': ('public class Test { void test() {} }', ['class', 'method']),
+        }
+        
+        for lang, (code, expected_types) in test_codes.items():
+            doc = self.generator.generate(code, lang)
+            self.assertTrue(len(doc.code_blocks) > 0)
+            self.assertEqual(doc.language, lang)
+
 if __name__ == '__main__':
     unittest.main()

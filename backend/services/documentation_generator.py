@@ -3,7 +3,18 @@ import json
 import logging
 import datetime
 from typing import List, Dict, Any, Literal, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+try:
+    import radon.metrics
+    import radon.complexity
+    from radon.visitors import ComplexityVisitor
+    RADON_AVAILABLE = True
+except ImportError:
+    RADON_AVAILABLE = False
+    logging.warning("radon package not found. Advanced metrics will be limited.")
+
+from pygments import lex
+from pygments.lexers import get_lexer_by_name
 
 @dataclass
 class CodeBlock:
@@ -13,15 +24,35 @@ class CodeBlock:
 
 @dataclass
 class Documentation:
-    title: str
-    description: str
+    """Documentation model class"""
+    title: str 
+    description: str 
     code_blocks: List[CodeBlock]
     language: str
     generated_at: str
-    metrics: dict = None
+    metrics: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert Documentation to dictionary"""
+        return {
+            'title': self.title,
+            'description': self.description,
+            'code_blocks': [
+                {
+                    'content': block.content,
+                    'language': block.language,
+                    'line_number': block.line_number
+                } for block in self.code_blocks
+            ],
+            'language': self.language,
+            'generated_at': self.generated_at,
+            'metrics': self.metrics
+        }
 
 class DocumentationGenerator:
     def __init__(self):
+        # Add RADON_AVAILABLE as class attribute
+        self.RADON_AVAILABLE = RADON_AVAILABLE
         self.supported_languages = {
             'python': self._parse_python,
             'javascript': self._parse_javascript,
@@ -358,6 +389,64 @@ class DocumentationGenerator:
             complexity += len(re.findall(pattern, code))
         
         return complexity
+
+    def _calculate_advanced_metrics(self, code_block: CodeBlock) -> Dict[str, Any]:
+        """Calculate advanced metrics for a code block."""
+        metrics = {
+            'loc': len(code_block.content.split('\n')),
+            'sloc': len([l for l in code_block.content.split('\n') if l.strip()]),
+            'comments': len(re.findall(r'(?://|#|/\*|\*/|"""|\'\'\')', code_block.content)),
+            'complexity': self._calculate_complexity(code_block),
+            'token_count': len(list(lex(code_block.content, 
+                get_lexer_by_name(code_block.language)))),
+            'char_count': len(code_block.content)
+        }
+        
+        # Add advanced metrics only if radon is available
+        if self.RADON_AVAILABLE and code_block.language == 'python':
+            try:
+                # Fix: Ensure code block has proper indentation for radon
+                code_content = code_block.content.strip()
+                if not code_content.endswith('\n'):
+                    code_content += '\n'
+                    
+                complexity_visitor = ComplexityVisitor.from_code(code_content)
+                metrics.update({
+                    'cognitive_complexity': complexity_visitor.total_complexity,
+                    'functions': len(complexity_visitor.functions),
+                    'classes': len(complexity_visitor.classes),
+                    'halstead_metrics': radon.metrics.h_visit(code_content),
+                    'maintainability_index': radon.metrics.mi_visit(code_content, True)
+                })
+            except Exception as e:
+                logging.warning(f"Failed to calculate advanced metrics: {str(e)}")
+                # Add default values if calculation fails
+                metrics.update({
+                    'cognitive_complexity': 0,
+                    'functions': 0,
+                    'classes': 0,
+                    'halstead_metrics': {},
+                    'maintainability_index': 0
+                })
+                
+        return metrics
+
+    def _calculate_python_metrics(self, code_block: CodeBlock) -> Dict[str, Any]:
+        """Calculate Python-specific metrics."""
+        metrics = {}
+        if RADON_AVAILABLE:
+            try:
+                complexity_visitor = ComplexityVisitor.from_code(code_block.content)
+                metrics.update({
+                    'cognitive_complexity': complexity_visitor.total_complexity,
+                    'functions': len(complexity_visitor.functions),
+                    'classes': len(complexity_visitor.classes),
+                    'halstead_metrics': radon.metrics.h_visit(code_block.content),
+                    'maintainability_index': radon.metrics.mi_visit(code_block.content, True)
+                })
+            except Exception as e:
+                logging.warning(f"Failed to calculate Python metrics: {str(e)}")
+        return metrics
 
     def save_documentation(self, doc: Documentation, output_path: str) -> None:
         """Save the generated documentation to a file."""
