@@ -6,6 +6,8 @@ from utils.validators import validate_code_input
 from services.documentation_generator import DocumentationGenerator
 from services.translator import TranslatorService
 from utils.middleware import RateLimiter, rate_limit, require_auth
+import logging
+
 
 api = Blueprint('api', __name__)
 azure_service = AzureService()
@@ -82,7 +84,6 @@ def documentation():
 @api.route('/analyze/documentation/generate', methods=['POST'])
 @rate_limit(rate_limiter)
 def generate_documentation():
-    """Generate documentation for code"""
     if not request.is_json:
         return jsonify({'error': 'Content-Type must be application/json'}), 400
 
@@ -90,25 +91,40 @@ def generate_documentation():
         data = request.get_json()
         if not validate_code_input(data):
             return jsonify({
-                'error': 'Invalid input format',
+                'error': 'Invalid input format', 
                 'required_fields': ['code', 'language']
             }), 400
 
-        result = doc_generator.generate(data['code'], data['language'])
+        template = data.get('template', 'default')
+        export_format = data.get('format', 'markdown')
+        
+        doc = doc_generator.generate(
+            data['code'],
+            data['language'],
+            title=data.get('title'),
+            description=data.get('description')
+        )
+        
+        result = doc_generator.export_documentation(
+            doc,
+            format=export_format,
+            template=template
+        )
+        
         return jsonify({
             'status': 'success',
-            'documentation': result.__dict__ if hasattr(result, '__dict__') else result
+            'documentation': result,
+            'format': export_format,
+            'template': template
         })
     except ValueError as e:
-        return jsonify({
-            'status': 'error',
-            'error': str(e)
-        }), 400
+        return jsonify({'status': 'error', 'error': str(e)}), 400
+    except NotImplementedError as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 501
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'error': str(e)
-        }), 500
+        logging.error(f"Documentation generation failed: {str(e)}")
+        return jsonify({'status': 'error', 'error': 'Internal server error'}), 500
+
 
 @api.route('/translate', methods=['POST'])
 def translate():
@@ -202,6 +218,20 @@ def save_documentation():
             
         doc = doc_generator.generate(data['code'], data['language'])
         doc_generator.save_documentation(doc, data['output_path'])
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@api.route('/export/markdown', methods=['POST'])
+@rate_limit(rate_limiter)
+def export_documentation_markdown():  # Changed function name from export_markdown to export_documentation_markdown
+    try:
+        data = request.get_json()
+        if not all(k in data for k in ['code', 'language', 'output_path']):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        doc = doc_generator.generate(data['code'], data['language'])
+        doc_generator.export_to_markdown(doc, data['output_path'])
         return jsonify({'status': 'success'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

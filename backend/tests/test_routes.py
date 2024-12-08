@@ -38,6 +38,9 @@ def test_save_documentation_route():
 
 def test_export_markdown_route():
     app = setup_test_app()
+    print("Registered routes:")
+    for rule in app.url_map.iter_rules():
+        print(f"{rule.endpoint}: {rule}")
     with app.test_client() as client:   
         with tempfile.TemporaryDirectory() as temp_dir:
             output_path = os.path.join(temp_dir, 'output.md')
