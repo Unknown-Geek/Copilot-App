@@ -42,8 +42,6 @@ __pycache__/
 .env.*
 !.env.example
 backend/.env
-backend/venv/
-backend\venv
 .env
+backend/venv/
 venv/
-venv

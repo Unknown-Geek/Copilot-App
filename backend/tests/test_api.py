@@ -197,6 +197,81 @@ def test_translate_endpoint(mock_analytics_client, client):
             assert response.status_code == 500
             assert response.json['status'] == 'error'
 
+@patch('services.translator.TextAnalyticsClient')
+def test_batch_translate_endpoint(mock_analytics_client, client):
+    mock_instance = Mock()
+    mock_instance.detect_language.return_value = [
+        Mock(
+            primary_language=Mock(
+                iso6391_name='en',
+                confidence_score=0.95
+            )
+        )
+    ]
+    mock_instance.translate_document.return_value = [
+        Mock(translations=[Mock(text='Bonjour')], is_error=False)
+    ]
+    mock_analytics_client.return_value = mock_instance
+
+    with patch('services.translator.TranslatorService.__init__', return_value=None):
+        with patch('services.translator.TranslatorService.batch_translate') as mock_translate:
+            mock_translate.return_value = [
+                {
+                    'translated_text': 'Bonjour',
+                    'detected_language': 'en',
+                    'confidence': 0.95
+                }
+            ]
+
+            response = client.post('/api/translate/batch', json={
+                'texts': ['Hello'],
+                'target_language': 'fr'
+            })
+            
+            assert response.status_code == 200
+            assert 'translations' in response.json
+            assert len(response.json['translations']) == 1
+
+@patch('services.translator.TextAnalyticsClient')
+def test_custom_terminology(mock_analytics_client, client):
+    mock_instance = Mock()
+    mock_instance.detect_language.return_value = [
+        Mock(
+            primary_language=Mock(
+                iso6391_name='en',
+                confidence_score=0.95
+            )
+        )
+    ]
+    mock_instance.translate_document.return_value = [
+        Mock(translations=[Mock(text='Bonjour')], is_error=False)
+    ]
+    mock_analytics_client.return_value = mock_instance
+
+    with patch('services.translator.TranslatorService.__init__', return_value=None):
+        with patch('services.translator.TranslatorService.translate') as mock_translate:
+            mock_translate.return_value = {
+                'translated_text': 'Bonjour mon ami',
+                'detected_language': 'en',
+                'confidence': 0.95
+            }
+
+            # Test adding custom terminology
+            response = client.post('/api/translate/terminology', json={
+                'source_lang': 'en',
+                'target_lang': 'fr',
+                'terms': {'friend': 'ami'}
+            })
+            assert response.status_code == 200
+
+            # Test translation with custom terms
+            response = client.post('/api/translate', json={
+                'text': 'Hello friend',
+                'target_language': 'fr'
+            })
+            assert response.status_code == 200
+            assert 'ami' in response.json['translated_text']
+
 def test_documentation_endpoint_integration(client):
     test_code = '''"""Test function"""
 def test():

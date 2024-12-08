@@ -170,6 +170,65 @@ def translate():
             'error': 'Translation service error occurred'
         }), 500
 
+@api.route('/translate/batch', methods=['POST'])
+@rate_limit(rate_limiter)
+def batch_translate():
+    """Batch translate multiple texts"""
+    if not request.is_json:
+        return jsonify({'error': 'Content-Type must be application/json'}), 400
+
+    data = request.get_json()
+    texts = data.get('texts', [])
+    target_language = data.get('target_language')
+
+    if not texts or not isinstance(texts, list):
+        return jsonify({'error': 'Invalid or missing texts field'}), 400
+    if not target_language or not isinstance(target_language, str):
+        return jsonify({'error': 'Invalid or missing target_language field'}), 400
+
+    try:
+        translations = translator.batch_translate(texts, target_language)
+        return jsonify({
+            'status': 'success',
+            'translations': translations
+        }), 200
+    except Exception as e:
+        logging.error(f"Batch translation failed: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': 'Translation service error occurred'
+        }), 500
+
+@api.route('/translate/terminology', methods=['POST'])
+@rate_limit(rate_limiter)
+def add_custom_terminology():
+    """Add custom terminology for translation"""
+    if not request.is_json:
+        return jsonify({'error': 'Content-Type must be application/json'}), 400
+
+    data = request.get_json()
+    source_lang = data.get('source_lang')
+    target_lang = data.get('target_lang')
+    terms = data.get('terms', {})
+
+    if not all([source_lang, target_lang, terms]):
+        return jsonify({'error': 'Missing required fields'}), 400
+    if not isinstance(terms, dict):
+        return jsonify({'error': 'Terms must be a dictionary'}), 400
+
+    try:
+        translator.add_custom_terminology(source_lang, target_lang, terms)
+        return jsonify({
+            'status': 'success',
+            'message': 'Custom terminology added'
+        }), 200
+    except Exception as e:
+        logging.error(f"Failed to add custom terminology: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
 @api.route('/github/<owner>/<repo>', methods=['GET'])
 @rate_limit(rate_limiter)
 @require_auth
