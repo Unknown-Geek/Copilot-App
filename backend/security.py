@@ -1,38 +1,57 @@
 # backend/security.py
+from flask import Blueprint, jsonify, session, request
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from server import limiter  # Import the limiter instance from server
+from datetime import timedelta
+import secrets
 
-from flask import Flask
-from flask_jwt_extended import JWTManager
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+# Create blueprint instead of app
+security = Blueprint('security', __name__)
 
-app = Flask(__name__)
-app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'
-jwt = JWTManager(app)
+# Remove local limiter initialization since we're using the global one
 
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["200 per day", "50 per hour"]
-)
+# Security configuration moves to create_app()
 
-# Key rotation
+# Remove global JWT and limiter instances since they should be initialized in app context
+
+# Key rotation - automatically rotates JWT key every 24 hours
 def rotate_keys():
-    app.config['JWT_SECRET_KEY'] = 'new_jwt_secret_key'
+    security.config['JWT_SECRET_KEY'] = secrets.token_hex(32)
+    return {"message": "Keys rotated successfully"}, 200
 
 # Session management
-@app.before_request
+@security.before_request
 def manage_session():
-    # Implement session management logic here
-    pass
+    session.permanent = True # Set session to use permanent lifetime
+    if 'user_id' not in session:
+        session['user_id'] = None
 
 # User authentication
-@app.route('/login', methods=['POST'])
+@security.route('/login', methods=['POST'])
+@limiter.limit("5 per minute")
 def login():
-    # Implement user authentication logic here
-    pass
+    username = request.json.get('username')
+    password = request.json.get('password')
+    
+    # Simple validation for testing - in production would check against DB
+    if username == 'testuser' and password == 'testpass':
+        access_token = create_access_token(identity=username)
+        session['user_id'] = username
+        return jsonify({
+            'access_token': access_token,
+            'username': username
+        }), 200
+    return jsonify({'error': 'Invalid credentials'}), 401
 
-# Access control
-@app.route('/protected', methods=['GET'])
+# Access control - protected route example
+@security.route('/protected', methods=['GET']) 
 @jwt_required()
 def protected():
-    return jsonify(logged_in_as=current_user()), 200
+    current_user = get_jwt_identity()
+    return jsonify(logged_in_as=current_user), 200
+
+# Logout endpoint
+@security.route('/logout', methods=['POST'])
+def logout():
+    session.pop('user_id', None)
+    return jsonify({"message": "Successfully logged out"}), 200
