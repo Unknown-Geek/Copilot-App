@@ -13,17 +13,16 @@ def create_app():
     app = Flask(__name__)
     CORS(app)
     
+    # Import and register blueprints
+    from routes import api  # Import the blueprint
+    app.register_blueprint(api, url_prefix='/api')  # Register with prefix
+    
     logging.basicConfig(level=logging.DEBUG)
     
     try:
-        # Handle test configuration first
         if os.getenv('FLASK_ENV') == 'testing':
             app.config.update(Config.get_test_config())
-            Config.AZURE_KEY = app.config['AZURE_KEY']
-            Config.AZURE_ENDPOINT = app.config['AZURE_ENDPOINT']
-            
         Config.validate()
-        app.register_blueprint(api, url_prefix='/api')
         logging.info("App created successfully")
         return app
     except Exception as e:

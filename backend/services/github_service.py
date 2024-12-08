@@ -4,6 +4,8 @@ from functools import lru_cache
 from typing import Dict, Any, Optional, NamedTuple
 from datetime import datetime, timedelta
 import time
+import os
+from typing import List
 
 class CachedResponse(NamedTuple):
     data: Dict[str, Any]
@@ -82,6 +84,23 @@ class GitHubService:
             "homepage": response.get("homepage"),
             "default_branch": response.get("default_branch")
         }
+    
+    def scan_repository(self, repo_path: str) -> List[str]:
+        """
+        Scan the repository for files that need documentation.
+
+        Args:
+            repo_path (str): Path to the repository
+
+        Returns:
+            List[str]: List of file paths that need documentation
+        """
+        files_to_document = []
+        for root, _, files in os.walk(repo_path):
+            for file in files:
+                if file.endswith(('.py', '.js', '.java', '.cpp', '.cs')):
+                    files_to_document.append(os.path.join(root, file))
+        return files_to_document
 
     def get_repository_info(self, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository information with caching"""

@@ -1,8 +1,16 @@
-from flask import jsonify, request
+from flask import jsonify, request, Blueprint
 from .services import DocumentationGenerator
 from .utils import validate_code_input, rate_limit
+from .services.github_service import GitHubService
+from .services.documentation_generator import DocumentationGenerator
+import logging
+from flask_limiter import Limiter
 
-# ...existing imports and setup...
+# Create Blueprint
+api = Blueprint('api', __name__)
+
+# Setup rate limiter
+rate_limiter = Limiter(key_func=lambda: request.remote_addr)
 
 @api.route('/analyze/documentation/generate', methods=['POST'])
 @rate_limit(rate_limiter)
@@ -48,3 +56,50 @@ def generate_documentation():
     except Exception as e:
         logging.error(f"Documentation generation failed: {str(e)}")
         return jsonify({'status': 'error', 'error': 'Internal server error'}), 500
+    
+
+github_service = GitHubService()
+doc_generator = DocumentationGenerator()
+
+@api.route('/scan', methods=['POST'])
+@rate_limit(rate_limiter)
+def scan_repository():
+    try:
+        data = request.get_json()
+        if not data or 'repo_path' not in data:
+            return jsonify({'error': 'repo_path is required'}), 400
+        
+        repo_path = data['repo_path']
+        files = github_service.scan_repository(repo_path)
+        return jsonify({'files': files})
+    except Exception as e:
+        logging.error(f"Repository scan failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@api.route('/save', methods=['POST'])
+@rate_limit(rate_limiter)
+def save_documentation():
+    try:
+        data = request.get_json()
+        if not all(k in data for k in ['code', 'language', 'output_path']):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        doc = doc_generator.generate(data['code'], data['language'])
+        doc_generator.save_documentation(doc, data['output_path'])
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api.route('/export/markdown', methods=['POST'])
+@rate_limit(rate_limiter)
+def export_markdown():
+    try:
+        data = request.get_json()
+        if not all(k in data for k in ['code', 'language', 'output_path']):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        doc = doc_generator.generate(data['code'], data['language'])
+        doc_generator.export_to_markdown(doc, data['output_path'])
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -359,6 +359,18 @@ class DocumentationGenerator:
         
         return complexity
 
+    def save_documentation(self, doc: Documentation, output_path: str) -> None:
+        """Save the generated documentation to a file."""
+        markdown_content = self._export_markdown(doc, template='default')
+        with open(output_path, 'w') as file:
+            file.write(markdown_content)
+
+    def export_to_markdown(self, doc: Documentation, output_path: str) -> None:
+        """Export the documentation to a Markdown file."""
+        markdown_content = self._export_markdown(doc, template='default')
+        with open(output_path, 'w') as file:
+            file.write(markdown_content)
+
     def _export_markdown(self, doc: Documentation, template: str) -> str:
         """Export documentation to markdown format."""
         template_config = self.templates[template]

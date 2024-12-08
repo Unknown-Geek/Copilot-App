@@ -28,58 +28,56 @@ class TestAPIFeatures(unittest.TestCase):
         self.app_context.pop()
 
     @patch('services.azure_service.TextAnalyticsClient')
-    def test_azure_integration(self, mock_azure_client):
+    @patch('services.azure_service.AzureService.analyze_sentiment')
+    def test_azure_integration(self, mock_analyze, mock_azure_client):
         """Test Azure Text Analytics integration"""
         test_code = "def greet(): print('Hello!')"
 
-        mock_instance = Mock()
-        mock_instance.analyze_sentiment.return_value = [Mock(
-            sentiment='positive',
-            confidence_scores=Mock(positive=0.8, neutral=0.2, negative=0.0),
-            sentences=[],
-            is_error=False
-        )]
-        mock_azure_client.return_value = mock_instance
-        
+        # Mock the analyze_sentiment method directly
+        mock_analyze.return_value = {
+            'sentiment': 'positive',
+            'confidence_scores': {'positive': 0.8, 'neutral': 0.2, 'negative': 0.0},
+            'sentences': []
+        }
+
         response = self.client.post('/api/analyze', json={
             'code': test_code,
             'language': 'python'
         })
-        
-        logging.info(f"Response status code: {response.status_code}")
-        logging.info(f"Response data: {response.get_json()}")
-        
-        self.assertEqual(response.status_code, 200)
+
+        assert response.status_code == 200
         data = response.get_json()
-        self.assertEqual(data['status'], 'success')
+        assert 'sentiment' in data
+        assert data['sentiment'] == 'positive'
 
     def test_code_analysis_with_comments(self):
         """Test code analysis with different comment styles"""
-        with patch('services.code_analyzer.CodeAnalyzer.analyze_code') as mock_analyze:
+        test_data = {
+            'code': '''
+            # Single line comment
+            """
+            Multi-line docstring
+            with additional info
+            """
+            def test():
+                # Function comment
+                return True
+            ''',
+            'language': 'python'
+        }
+
+        with patch('services.azure_service.AzureService.analyze_sentiment') as mock_analyze:
             mock_analyze.return_value = {
-                'status': 'success',
                 'sentiment': 'neutral',
                 'confidence_scores': {'positive': 0.3, 'neutral': 0.6, 'negative': 0.1},
                 'sentences': []
             }
-            
-            test_data = {
-                'code': '''
-                # Single line comment
-                """
-                Multi-line docstring
-                with additional info
-                """
-                def test():
-                    # Function comment
-                    return True
-                ''',
-                'language': 'python'
-            }
+
             response = self.client.post('/api/analyze', json=test_data)
-            self.assertEqual(response.status_code, 200)
+            assert response.status_code == 200
             data = response.get_json()
-            self.assertEqual(data['status'], 'success')
+            assert 'sentiment' in data
+            assert data['sentiment'] == 'neutral'
 
     def test_documentation_with_multiple_languages(self):
         """Test documentation generation for different languages"""
