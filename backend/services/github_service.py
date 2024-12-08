@@ -6,9 +6,13 @@ from datetime import datetime, timedelta
 import time
 import os
 from typing import List
+import logging
+from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-class CachedResponse(NamedTuple):
-    data: Dict[str, Any]
+@dataclass
+class CachedResponse:
+    data: Any
     expires_at: float
 
 class GitHubService:
@@ -103,52 +107,146 @@ class GitHubService:
         return files_to_document
 
     def get_repository_info(self, owner: str, repo: str) -> Dict[str, Any]:
-        """Get repository information with caching"""
+        """Get repository information with improved caching"""
         cache_key = f"{owner}/{repo}"
         
-        # Check cache first
+        # Check cache first with stale-while-revalidate strategy
         cached = self._cache.get(cache_key)
-        if cached and time.time() < cached.expires_at:
+        current_time = time.time()
+        
+        # Return cached response if still fresh
+        if cached and current_time < cached.expires_at:
+            return cached.data
+            
+        # Start background refresh if stale but not expired
+        if cached and current_time < (cached.expires_at + 300):  # 5 min grace period
+            self._refresh_cache_async(owner, repo, cache_key)
             return cached.data
 
-        # Make API request
-        if not self.token:
-            return {'error': 'GitHub token not configured'}
-        if not self._validate_credentials():
-            return {'error': 'Invalid GitHub credentials - please check your token'}
+        return self._fetch_repository_info(owner, repo, cache_key)
 
-        if not self._check_rate_limit():
-            return {'error': 'GitHub API rate limit exceeded'}
+    def _refresh_cache_async(self, owner: str, repo: str, cache_key: str) -> None:
+        """Refresh cache asynchronously"""
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(self._fetch_repository_info, owner, repo, cache_key)
 
+    def analyze_repository(self, owner: str, repo: str) -> Dict[str, Any]:
+        """Advanced repository analysis"""
         try:
-            url = f"{self.base_url}/repos/{owner}/{repo}"
-            response = requests.get(
-                url,
-                headers=self.headers,
-                timeout=10
-            )
-            self._update_rate_limit(response)
-            
-            if response.status_code == 401:
-                return {'error': 'Invalid GitHub credentials'}
-            elif response.status_code == 403:
-                return {'error': 'GitHub API access forbidden'}
-            elif response.status_code == 404:
-                return {'error': 'Repository not found'}
-            
-            response.raise_for_status()
-            data = self._format_repository_data(response.json())
-            
-            # Cache the formatted response
+            # Get basic repo info
+            repo_info = self.get_repository_info(owner, repo)
+            if 'error' in repo_info:
+                return repo_info
+
+            # Get additional data in parallel
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                futures = {
+                    'contributors': executor.submit(self._get_contributors, owner, repo),
+                    'languages': executor.submit(self._get_languages, owner, repo),
+                    'activity': executor.submit(self._get_activity_metrics, owner, repo)
+                }
+                
+                results = {}
+                for key, future in futures.items():
+                    try:
+                        results[key] = future.result()
+                    except Exception as e:
+                        results[key] = {'error': str(e)}
+
+            # Combine all data
+            analysis = {
+                'basic_info': repo_info,
+                'contributors': results['contributors'],
+                'languages': results['languages'],
+                'activity': results['activity'],
+                'analyzed_at': time.time()
+            }
+
+            # Cache the analysis
+            cache_key = f"{owner}/{repo}/analysis"
             self._cache[cache_key] = CachedResponse(
-                data=data,
+                data=analysis,
                 expires_at=time.time() + self.cache_ttl
             )
+
+            return analysis
+
+        except Exception as e:
+            logging.error(f"Repository analysis failed: {str(e)}")
+            return {'error': f'Analysis failed: {str(e)}'}
+
+    def batch_process_repositories(self, repos: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Process multiple repositories in parallel"""
+        results = {}
+        errors = []
+        
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_repo = {
+                executor.submit(self.analyze_repository, repo['owner'], repo['name']): repo
+                for repo in repos
+            }
             
-            return data
-            
-        except requests.exceptions.RequestException as e:
-            return {'error': f'GitHub API error: {str(e)}'}
+            for future in as_completed(future_to_repo):
+                repo = future_to_repo[future]
+                repo_key = f"{repo['owner']}/{repo['name']}"
+                try:
+                    results[repo_key] = future.result()
+                except Exception as e:
+                    errors.append({
+                        'repo': repo_key,
+                        'error': str(e)
+                    })
+
+        return {
+            'results': results,
+            'errors': errors,
+            'total': len(repos),
+            'successful': len(results),
+            'failed': len(errors)
+        }
+
+    def _get_contributors(self, owner: str, repo: str) -> Dict[str, Any]:
+        """Get repository contributors with statistics"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/contributors"
+        response = requests.get(url, headers=self.headers)
+        if response.status_code == 200:
+            contributors = response.json()
+            return {
+                'total_contributors': len(contributors),
+                'top_contributors': contributors[:10]
+            }
+        return {'error': f'Failed to fetch contributors: {response.status_code}'}
+
+    def _get_languages(self, owner: str, repo: str) -> Dict[str, Any]:
+        """Get repository language statistics"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/languages"
+        response = requests.get(url, headers=self.headers)
+        if response.status_code == 200:
+            languages = response.json()
+            total = sum(languages.values())
+            return {
+                'languages': languages,
+                'percentages': {lang: (count/total)*100 for lang, count in languages.items()}
+            }
+        return {'error': f'Failed to fetch languages: {response.status_code}'}
+
+    def _get_activity_metrics(self, owner: str, repo: str) -> Dict[str, Any]:
+        """Get repository activity metrics"""
+        # Get commit activity
+        commit_url = f"{self.base_url}/repos/{owner}/{repo}/stats/commit_activity"
+        commit_response = requests.get(commit_url, headers=self.headers)
+        
+        # Get code frequency
+        frequency_url = f"{self.base_url}/repos/{owner}/{repo}/stats/code_frequency"
+        frequency_response = requests.get(frequency_url, headers=self.headers)
+        
+        metrics = {
+            'commit_activity': commit_response.json() if commit_response.status_code == 200 else None,
+            'code_frequency': frequency_response.json() if frequency_response.status_code == 200 else None,
+            'collected_at': time.time()
+        }
+        
+        return metrics
 
     def get_oauth_url(self, redirect_uri: Optional[str] = None, state: Optional[str] = None) -> str:
         params = {

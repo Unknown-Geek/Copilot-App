@@ -184,6 +184,34 @@ def github_info(owner, repo):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@api.route('/github/<owner>/<repo>/analyze', methods=['GET'])
+@rate_limit(rate_limiter)
+@require_auth
+def analyze_repository(owner: str, repo: str):
+    """Get detailed repository analysis"""
+    try:
+        analysis = github.analyze_repository(owner, repo)
+        if 'error' in analysis:
+            return jsonify(analysis), 500
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api.route('/github/batch', methods=['POST'])
+@rate_limit(rate_limiter)
+@require_auth
+def batch_analyze_repositories():
+    """Batch process multiple repositories"""
+    try:
+        data = request.get_json()
+        if not data or 'repositories' not in data:
+            return jsonify({'error': 'repositories list is required'}), 400
+            
+        results = github.batch_process_repositories(data['repositories'])
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @api.route('/auth/github')
 def github_auth():
     redirect_uri = request.args.get('redirect_uri', 'http://127.0.0.1:3000/auth/callback')
