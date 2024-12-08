@@ -1,4 +1,3 @@
-
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -27,6 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
                 await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
             } catch (error) {
                 vscode.window.showErrorMessage('Failed to generate documentation');
+                console.error('Error generating documentation:', error);
             }
         }
     });
