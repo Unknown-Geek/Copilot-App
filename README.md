@@ -100,6 +100,9 @@ export function activate(context: vscode.ExtensionContext) {
 ```
 
 4. **Azure Integration**
+```python
+# azure_services.py
+from azure.ai.translation.text import TextTranslationClient
 from azure.ai.textanalytics import TextAnalyticsClient
 
 class DocumentationTranslator:
@@ -126,7 +129,7 @@ cd frontend
 npm install tailwindcss postcss autoprefixer
 ```
 
-### Required Environment Variables
+## Required Environment Variables
 ```properties
 AZURE_COGNITIVE_SERVICES_KEY=your_key
 AZURE_COGNITIVE_SERVICES_ENDPOINT=your_endpoint
@@ -134,7 +137,7 @@ GITHUB_CLIENT_ID=your_client_id
 GITHUB_CLIENT_SECRET=your_client_secret
 ```
 
-### Key Features to Implement
+## Key Features to Implement
 - Code parsing and comment extraction
 - Real-time documentation preview
 - Multi-language support
@@ -143,7 +146,6 @@ GITHUB_CLIENT_SECRET=your_client_secret
 - Documentation export options
 
 This structure provides a foundation to build upon using GitHub Copilot for code completion and suggestions.
-
 
 ## Backend Progress
 Backend Progress
