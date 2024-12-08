@@ -5,8 +5,8 @@ from typing import Dict, Any
 load_dotenv()
 
 class Config:
-    AZURE_KEY = os.getenv('AZURE_COGNITIVE_SERVICES_KEY', '')
-    AZURE_ENDPOINT = os.getenv('AZURE_COGNITIVE_SERVICES_ENDPOINT', '')
+    AZURE_KEY = os.getenv('AZURE_KEY', '')  # Changed from AZURE_COGNITIVE_SERVICES_KEY
+    AZURE_ENDPOINT = os.getenv('AZURE_ENDPOINT', '')  # Changed from AZURE_COGNITIVE_SERVICES_ENDPOINT
     GITHUB_TOKEN = os.getenv('GITHUB_TOKEN', '')
     GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '')
     GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET', '')
@@ -35,8 +35,12 @@ class Config:
         """Validate configuration with test environment support"""
         from flask import current_app
         
-        if current_app and current_app.config.get('TESTING'):
-            return {'status': 'valid', 'config': cls.get_test_config()}
+        # Always use test config if FLASK_ENV is testing
+        if os.getenv('FLASK_ENV') == 'testing' or (current_app and current_app.config.get('TESTING')):
+            test_config = cls.get_test_config()
+            if current_app:
+                current_app.config.update(test_config)
+            return {'status': 'valid', 'config': test_config}
 
         required = {
             'AZURE_KEY': cls.AZURE_KEY,

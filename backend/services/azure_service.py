@@ -2,30 +2,13 @@ import logging
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.core.credentials import AzureKeyCredential
 from config import Config
-from flask import current_app
 
-class CodeAnalyzer:
-    _instance = None
-
+class AzureService:
     def __init__(self):
         self.client = None
-        self.language_map = {
-            'python': 'en',
-            'javascript': 'en',
-            'typescript': 'en',
-            'java': 'en'
-        }
+        self.initialize()
 
     def initialize(self):
-        """Lazy initialization of the Azure client"""
-        if self.client is not None:
-            return
-
-        if current_app.config.get('TESTING'):
-            # Use mock client for testing
-            self.client = self._get_mock_client()
-            return
-
         if not Config.AZURE_KEY or not Config.AZURE_ENDPOINT:
             raise ValueError("Azure credentials not properly configured")
         
@@ -34,41 +17,22 @@ class CodeAnalyzer:
             credential=AzureKeyCredential(Config.AZURE_KEY.strip())
         )
 
-    def _get_mock_client(self):
-        """Return a mock client for testing"""
-        class MockTextAnalyticsClient:
-            def analyze_sentiment(self, documents):
-                return [{'sentiment': 'neutral', 'confidence_scores': {'positive': 0.5, 'neutral': 0.5, 'negative': 0.0}}]
-        return MockTextAnalyticsClient()
-
-    def analyze_code(self, code: str, language: str) -> dict:
-        self.initialize()  # Ensure client is initialized
+    def analyze_sentiment(self, code: str, language: str) -> dict:
         try:
             logging.info(f"Analyzing code for language: {language}")
-            azure_lang = self.language_map.get(language.lower(), 'en')
-            documents = [{"id": "1", "text": code, "language": azure_lang}]
-            
-            response = self.client.analyze_sentiment(
-                documents=documents
-            )
+            documents = [{"id": "1", "text": code, "language": language}]
+            response = self.client.analyze_sentiment(documents=documents)
             return self._process_analysis(response)
         except Exception as e:
             logging.error(f"Code analysis failed: {str(e)}")
-            return {
-                "error": str(e),
-                "status": "error",
-                "details": "Failed to analyze code"
-            }
+            return {"error": str(e), "status": "error"}
 
     def _process_analysis(self, response):
         try:
             results = []
             for doc in response:
                 if doc.is_error:
-                    return {
-                        "status": "error",
-                        "error": f"Document analysis failed: {doc.error}"
-                    }
+                    return {"status": "error", "error": f"Document analysis failed: {doc.error}"}
                 
                 analysis = {
                     "status": "success",
@@ -90,13 +54,6 @@ class CodeAnalyzer:
                 }
                 results.append(analysis)
             
-            return results[0] if results else {
-                "status": "error",
-                "error": "No analysis results"
-            }
-            
+            return results[0] if results else {"status": "error", "error": "No analysis results"}
         except Exception as e:
-            return {
-                "status": "error",
-                "error": f"Failed to process analysis: {str(e)}"
-            }
+            return {"status": "error", "error": f"Failed to process analysis: {str(e)}"}

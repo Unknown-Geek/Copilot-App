@@ -1,9 +1,9 @@
-
 import ast
 from typing import List, Dict, Any
 from models.documentation import Documentation, CodeBlock
 from datetime import datetime
 import re
+import logging
 
 class DocumentationGenerator:
     def __init__(self):
@@ -11,10 +11,12 @@ class DocumentationGenerator:
             'python': self._parse_python,
             'javascript': self._parse_javascript
         }
+        logging.basicConfig(level=logging.DEBUG)
 
     def generate(self, code: str, language: str) -> Documentation:
         """Generate documentation for given code"""
         try:
+            logging.info(f"Generating documentation for language: {language}")
             parse_func = self.supported_languages.get(language.lower())
             if not parse_func:
                 raise ValueError(f"Unsupported language: {language}")
@@ -28,6 +30,7 @@ class DocumentationGenerator:
                 language=language
             )
         except Exception as e:
+            logging.error(f"Documentation generation failed: {str(e)}")
             raise ValueError(f"Documentation generation failed: {str(e)}")
 
     def _parse_python(self, code: str) -> List[CodeBlock]:
@@ -41,10 +44,10 @@ class DocumentationGenerator:
                         language='python',
                         line_number=node.lineno
                     ))
-                elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Str):
+                elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
                     # Capture docstrings
                     blocks.append(CodeBlock(
-                        content=node.value.s,
+                        content=node.value.value,
                         language='text',
                         line_number=node.lineno
                     ))
@@ -54,19 +57,28 @@ class DocumentationGenerator:
 
     def _parse_javascript(self, code: str) -> List[CodeBlock]:
         blocks = []
-        # Basic regex-based parsing for now
-        # Could be enhanced with a proper JS parser
-        function_pattern = r'(function\s+\w+\s*\([^)]*\)\s*{[^}]*})'
-        class_pattern = r'(class\s+\w+\s*{[^}]*})'
+        # Improved regex patterns
+        function_pattern = r'(function\s+\w+\s*\([^)]*\)\s*\{[^}]*\})'
+        class_pattern = r'(class\s+\w+\s*\{[^}]*\})'
+        comment_pattern = r'(//[^\n]*|/\*(?:.|[\r\n])*?\*/)'
         
+        # First collect all comments
+        for match in re.finditer(comment_pattern, code):
+            blocks.append(CodeBlock(
+                content=match.group(1),
+                language='text',
+                line_number=code[:match.start()].count('\n') + 1
+            ))
+        
+        # Then collect functions and classes
         for pattern in [function_pattern, class_pattern]:
-            matches = re.finditer(pattern, code)
-            for match in matches:
+            for match in re.finditer(pattern, code):
                 blocks.append(CodeBlock(
-                    content=match.group(1),
+                    content=match.group(1).strip(),
                     language='javascript',
                     line_number=code[:match.start()].count('\n') + 1
                 ))
+        
         return blocks
 
     def _extract_title(self, blocks: List[CodeBlock]) -> str:
