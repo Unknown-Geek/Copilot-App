@@ -1,4 +1,3 @@
-
 from flask import jsonify, request
 from .services import DocumentationGenerator
 from .utils import validate_code_input, rate_limit
@@ -25,19 +24,27 @@ def generate_documentation():
         doc = doc_generator.generate(
             data['code'], 
             data['language'],
-            template=template
+            title=data.get('title'),
+            description=data.get('description')
         )
         
-        result = doc_generator.export_documentation(doc, format=export_format)
+        result = doc_generator.export_documentation(
+            doc,
+            format=export_format,
+            template=template
+        )
         
         return jsonify({
             'status': 'success',
             'documentation': result,
-            'format': export_format
+            'format': export_format,
+            'template': template
         })
 
     except ValueError as e:
         return jsonify({'status': 'error', 'error': str(e)}), 400
+    except NotImplementedError as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 501
     except Exception as e:
         logging.error(f"Documentation generation failed: {str(e)}")
         return jsonify({'status': 'error', 'error': 'Internal server error'}), 500

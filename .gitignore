@@ -43,3 +43,7 @@ __pycache__/
 !.env.example
 backend/.env
 backend/venv/
+backend\venv
+.env
+venv/
+venv
