@@ -127,8 +127,9 @@ def generate_documentation():
 
 
 @api.route('/translate', methods=['POST'])
+@rate_limit(rate_limiter)
 def translate():
-    """Translate text to target language"""
+    """Translate text to target language with improved validation and response handling"""
     if not request.is_json:
         return jsonify({'error': 'Content-Type must be application/json'}), 400
 
@@ -136,19 +137,38 @@ def translate():
     text = data.get('text')
     target_language = data.get('target_language')
 
-    if not text or not target_language:
-        return jsonify({'error': 'Missing required fields: text and target_language'}), 400
+    # Enhanced input validation
+    if not text or not isinstance(text, str):
+        return jsonify({'error': 'Invalid or missing text field'}), 400
+    if not target_language or not isinstance(target_language, str):
+        return jsonify({'error': 'Invalid or missing target_language field'}), 400
+    
+    try:
+        translation_result = translator.translate(text, target_language)
+        
+        if 'error' in translation_result:
+            return jsonify({
+                'status': 'error',
+                'error': translation_result['error']
+            }), 500
 
-    translation_result = translator.translate(text, target_language)
-
-    if 'error' in translation_result:
-        return jsonify({'status': 'error', 'error': translation_result['error']}), 500
-
-    return jsonify({
-        'translated_text': translation_result['translated_text'],
-        'detected_language': translation_result['detected_language'],
-        'confidence': translation_result['confidence']
-    }), 200
+        return jsonify({
+            'status': 'success',
+            'translated_text': translation_result['translated_text'],
+            'detected_language': translation_result['detected_language'],
+            'confidence': translation_result['confidence'],
+            'metrics': {
+                'input_length': len(text),
+                'translation_length': len(translation_result['translated_text'])
+            }
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Translation failed: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': 'Translation service error occurred'
+        }), 500
 
 @api.route('/github/<owner>/<repo>', methods=['GET'])
 @rate_limit(rate_limiter)

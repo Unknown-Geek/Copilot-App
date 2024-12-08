@@ -146,6 +146,57 @@ def test_translate_endpoint(mock_analytics_client, client):
             assert data['detected_language'] == 'en'
             assert data['confidence'] == 0.95
 
+@patch('services.azure_service.TextAnalyticsClient')
+def test_translate_endpoint(mock_analytics_client, client):
+    # Configure mock responses
+    mock_language_detection = Mock()
+    mock_language_detection.primary_language.iso6391_name = 'en'
+    mock_language_detection.primary_language.confidence_score = 0.95
+    mock_translation = Mock()
+    mock_translation.translations = [Mock(text='Bonjour')]
+    mock_translation.is_error = False
+    mock_instance = Mock()
+    mock_instance.detect_language.return_value = [mock_language_detection]
+    mock_instance.translate_document.return_value = [mock_translation]
+    mock_analytics_client.return_value = mock_instance
+
+    with patch('services.translator.TranslatorService.__init__', return_value=None):
+        with patch('services.translator.TranslatorService.translate') as mock_translate:
+            # Success case
+            mock_translate.return_value = {
+                'translated_text': 'Bonjour',
+                'detected_language': 'en',
+                'confidence': 0.95
+            }
+            response = client.post('/api/translate', json={
+                'text': 'Hello',
+                'target_language': 'fr'
+            })
+            assert response.status_code == 200
+            assert response.json['status'] == 'success'
+            assert 'metrics' in response.json
+
+            # Invalid input cases
+            response = client.post('/api/translate', json={
+                'text': None,
+                'target_language': 'fr'
+            })
+            assert response.status_code == 400
+
+            response = client.post('/api/translate', json={
+                'text': 'Hello'
+            })
+            assert response.status_code == 400
+
+            # Error case
+            mock_translate.side_effect = Exception('Translation failed')
+            response = client.post('/api/translate', json={
+                'text': 'Hello',
+                'target_language': 'fr'
+            })
+            assert response.status_code == 500
+            assert response.json['status'] == 'error'
+
 def test_documentation_endpoint_integration(client):
     test_code = '''"""Test function"""
 def test():
