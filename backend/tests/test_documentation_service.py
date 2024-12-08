@@ -125,8 +125,8 @@ class TestDocumentationFeatures(unittest.TestCase):
             self.generator.export_documentation(doc, format='invalid_format')
 
         # Test empty code
-        doc = self.generator.generate("", "python")
-        self.assertEqual(len(doc.code_blocks), 0)
+        with self.assertRaises(ValueError):
+            self.generator.generate("", "python")
 
 if __name__ == '__main__':
     unittest.main()
