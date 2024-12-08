@@ -106,6 +106,46 @@ def test_analyze_endpoint(mock_azure_client, client):
             assert 'sentiment' in data
             assert 'confidence_scores' in data
 
+@patch('services.translator.TextAnalyticsClient')
+def test_translate_endpoint(mock_analytics_client, client):
+    # Configure mock responses
+    mock_language_detection = Mock()
+    mock_language_detection.primary_language.iso6391_name = 'en'
+    mock_language_detection.primary_language.confidence_score = 0.95
+
+    mock_translation = Mock()
+    mock_translation.translations = [Mock(text='Bonjour')]
+    mock_translation.is_error = False
+
+    mock_instance = Mock()
+    mock_instance.detect_language.return_value = [mock_language_detection]
+    mock_instance.translate_document.return_value = [mock_translation]
+    mock_analytics_client.return_value = mock_instance
+
+    # Mock the translator service initialization
+    with patch('services.translator.TranslatorService.__init__', return_value=None):
+        with patch('services.translator.TranslatorService.translate') as mock_translate:
+            mock_translate.return_value = {
+                'translated_text': 'Bonjour',
+                'detected_language': 'en',
+                'confidence': 0.95
+            }
+
+            try:
+                response = client.post('/api/translate', json={
+                    'text': 'Hello',
+                    'target_language': 'fr'
+                })
+            except Exception as e:
+                print(f"Exception occurred: {str(e)}")
+                raise
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['translated_text'] == 'Bonjour'
+            assert data['detected_language'] == 'en'
+            assert data['confidence'] == 0.95
+
 def test_documentation_endpoint_integration(client):
     test_code = '''"""Test function"""
 def test():

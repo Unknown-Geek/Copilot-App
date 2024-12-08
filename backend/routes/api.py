@@ -131,33 +131,24 @@ def translate():
     """Translate text to target language"""
     if not request.is_json:
         return jsonify({'error': 'Content-Type must be application/json'}), 400
-        
-    try:
-        data = request.get_json()
-        if not all(k in data for k in ['text', 'target_language']):
-            return jsonify({
-                'error': 'Invalid input format',
-                'required_fields': ['text', 'target_language']
-            }), 400
 
-        result = translator.translate(
-            data['text'],
-            data['target_language'],
-            data.get('source_language')
-        )
-        
-        if 'error' in result:
-            return jsonify(result), 400
-            
-        return jsonify({
-            'status': 'success',
-            'translation': result
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'error': str(e)
-        }), 500
+    data = request.get_json()
+    text = data.get('text')
+    target_language = data.get('target_language')
+
+    if not text or not target_language:
+        return jsonify({'error': 'Missing required fields: text and target_language'}), 400
+
+    translation_result = translator.translate(text, target_language)
+
+    if 'error' in translation_result:
+        return jsonify({'status': 'error', 'error': translation_result['error']}), 500
+
+    return jsonify({
+        'translated_text': translation_result['translated_text'],
+        'detected_language': translation_result['detected_language'],
+        'confidence': translation_result['confidence']
+    }), 200
 
 @api.route('/github/<owner>/<repo>', methods=['GET'])
 @rate_limit(rate_limiter)
