@@ -7,12 +7,20 @@ from pathlib import Path
 backend_dir = str(Path(__file__).parent.parent)
 if backend_dir not in sys.path:
     sys.path.append(backend_dir)
-
+    
+# Change the import to use the absolute path
 from server import create_app
+
+# Mock rate limiter for testing
+class MockLimiter:
+    def limit(self, *args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
 
 @pytest.fixture
 def app():
-    app = create_app()
+    app = create_app(testing=True)  # Pass testing flag
     app.config.update({
         'TESTING': True,
         'AZURE_KEY': 'test_key',

@@ -176,3 +176,32 @@ def github_callback():
     if 'access_token' in result:
         return jsonify({'token': result['access_token']})
     return jsonify({'error': 'Failed to get token'}), 400
+
+@api.route('/scan', methods=['POST'])
+@rate_limit(rate_limiter)
+def scan_repository():
+    try:
+        data = request.get_json()
+        if not data or 'repo_path' not in data:
+            return jsonify({'error': 'repo_path is required'}), 400
+        
+        repo_path = data['repo_path']
+        files = github.scan_repository(repo_path)
+        return jsonify({'files': files})
+    except Exception as e:
+        logging.error(f"Repository scan failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@api.route('/save', methods=['POST'])
+@rate_limit(rate_limiter)
+def save_documentation():
+    try:
+        data = request.get_json()
+        if not all(k in data for k in ['code', 'language', 'output_path']):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        doc = doc_generator.generate(data['code'], data['language'])
+        doc_generator.save_documentation(doc, data['output_path'])
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

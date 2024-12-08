@@ -1,16 +1,25 @@
 from flask import jsonify, request, Blueprint
-from .services import DocumentationGenerator
-from .utils import validate_code_input, rate_limit
-from .services.github_service import GitHubService
-from .services.documentation_generator import DocumentationGenerator
 import logging
-from flask_limiter import Limiter
 
-# Create Blueprint
 api = Blueprint('api', __name__)
 
-# Setup rate limiter
-rate_limiter = Limiter(key_func=lambda: request.remote_addr)
+try:
+    from flask_limiter import Limiter
+    rate_limiter = Limiter(key_func=lambda: request.remote_addr)
+except ImportError:
+    # Mock rate limiter if package not available
+    class MockLimiter:
+        def limit(self, *args, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+    rate_limiter = MockLimiter()
+
+# Change relative imports to absolute
+from services import DocumentationGenerator
+from utils import validate_code_input, rate_limit
+from services.github_service import GitHubService
+from services.documentation_generator import DocumentationGenerator
 
 @api.route('/analyze/documentation/generate', methods=['POST'])
 @rate_limit(rate_limiter)
