@@ -9,8 +9,13 @@ class RateLimiter:
         self.requests_per_minute = requests_per_minute
         self.requests: Dict[str, list] = {}
         self.lock = Lock()
-
+        
     def is_allowed(self, key: str) -> bool:
+        # Don't rate limit in testing mode
+        if current_app.config.get('TESTING') or \
+           not current_app.config.get('RATE_LIMIT_ENABLED', True):
+            return True
+            
         now = time.time()
         with self.lock:
             if key not in self.requests:
@@ -30,6 +35,12 @@ def rate_limit(limiter: RateLimiter):
         @wraps(f)
         def wrapped(*args, **kwargs):
             key = f"{request.remote_addr}:{f.__name__}"
+            
+            # Skip rate limiting in testing
+            if current_app.config.get('TESTING') or \
+               not current_app.config.get('RATE_LIMIT_ENABLED', True):
+                return f(*args, **kwargs)
+                
             if not limiter.is_allowed(key):
                 return jsonify({
                     'error': 'Rate limit exceeded',

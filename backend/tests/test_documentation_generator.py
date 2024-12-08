@@ -120,5 +120,35 @@ class TestClass:
             self.assertTrue(len(doc.code_blocks) > 0)
             self.assertEqual(doc.language, lang)
 
+    def test_export_pdf(self):
+        """Test PDF export functionality"""
+        doc = self.generator.generate(self.test_code, "python")
+        output_path = self.generator.export_documentation(
+            doc, 
+            format='pdf', 
+            template='default'
+        )
+        
+        self.assertTrue(os.path.exists(output_path))
+        self.assertTrue(output_path.endswith('.pdf'))
+        
+        # Cleanup
+        os.remove(output_path)
+
+    def test_export_docx(self):
+        """Test DOCX export functionality"""
+        doc = self.generator.generate(self.test_code, "python")
+        output_path = self.generator.export_documentation(
+            doc, 
+            format='docx', 
+            template='default'
+        )
+        
+        self.assertTrue(os.path.exists(output_path))
+        self.assertTrue(output_path.endswith('.docx'))
+        
+        # Cleanup
+        os.remove(output_path)
+
 if __name__ == '__main__':
     unittest.main()

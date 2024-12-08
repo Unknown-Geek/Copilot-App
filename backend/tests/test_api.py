@@ -23,6 +23,8 @@ def app():
     app.config.update({
         'AZURE_KEY': 'test_key',
         'AZURE_ENDPOINT': 'https://test.azure.com',
+        'TESTING': True,
+        'DEBUG': False,
     })
     return app
 
@@ -197,80 +199,60 @@ def test_translate_endpoint(mock_analytics_client, client):
             assert response.status_code == 500
             assert response.json['status'] == 'error'
 
-@patch('services.translator.TextAnalyticsClient')
-def test_batch_translate_endpoint(mock_analytics_client, client):
+@patch('azure.ai.translation.text.TextTranslationClient')
+def test_batch_translate_endpoint(mock_translation_client, client):
+    # Configure mock response
+    mock_translations = [Mock(translations=[Mock(text='Bonjour')], 
+                            detected_language=Mock(language='en', score=0.95))]
     mock_instance = Mock()
-    mock_instance.detect_language.return_value = [
-        Mock(
-            primary_language=Mock(
-                iso6391_name='en',
-                confidence_score=0.95
-            )
-        )
-    ]
-    mock_instance.translate_document.return_value = [
-        Mock(translations=[Mock(text='Bonjour')], is_error=False)
-    ]
-    mock_analytics_client.return_value = mock_instance
+    mock_instance.translate.return_value = mock_translations
+    mock_translation_client.return_value = mock_instance
 
-    with patch('services.translator.TranslatorService.__init__', return_value=None):
-        with patch('services.translator.TranslatorService.batch_translate') as mock_translate:
-            mock_translate.return_value = [
-                {
-                    'translated_text': 'Bonjour',
-                    'detected_language': 'en',
-                    'confidence': 0.95
-                }
-            ]
+    response = client.post('/api/translate/batch', json={
+        'texts': ['Hello'],
+        'target_language': 'fr'
+    })
+    assert response.status_code == 200
+    assert response.json['status'] == 'success'
+    assert len(response.json['translations']) == 1
 
-            response = client.post('/api/translate/batch', json={
-                'texts': ['Hello'],
-                'target_language': 'fr'
-            })
-            
-            assert response.status_code == 200
-            assert 'translations' in response.json
-            assert len(response.json['translations']) == 1
-
-@patch('services.translator.TextAnalyticsClient')
-def test_custom_terminology(mock_analytics_client, client):
+@patch('services.translator.TranslatorService')
+@patch('azure.ai.translation.text.TextTranslationClient')
+def test_custom_terminology(mock_translation_client, mock_translator_service, client):
+    # Configure mock response
+    mock_translations = [Mock(translations=[Mock(text='Salut')],
+                            detected_language=Mock(language='en', score=0.95))]
     mock_instance = Mock()
-    mock_instance.detect_language.return_value = [
-        Mock(
-            primary_language=Mock(
-                iso6391_name='en',
-                confidence_score=0.95
-            )
-        )
-    ]
-    mock_instance.translate_document.return_value = [
-        Mock(translations=[Mock(text='Bonjour')], is_error=False)
-    ]
-    mock_analytics_client.return_value = mock_instance
+    mock_instance.translate.return_value = mock_translations
+    mock_translation_client.return_value = mock_instance
 
-    with patch('services.translator.TranslatorService.__init__', return_value=None):
-        with patch('services.translator.TranslatorService.translate') as mock_translate:
-            mock_translate.return_value = {
-                'translated_text': 'Bonjour mon ami',
-                'detected_language': 'en',
-                'confidence': 0.95
-            }
+    # Setup translator service mock with error handling
+    mock_translator = Mock()
+    mock_translator.translate.return_value = {
+        'translated_text': 'Salut',
+        'detected_language': 'en',
+        'confidence': 0.95,
+        'status': 'success'
+    }
+    mock_translator.add_terminology = Mock(return_value=True)
+    mock_translator_service.return_value = mock_translator
 
-            # Test adding custom terminology
-            response = client.post('/api/translate/terminology', json={
-                'source_lang': 'en',
-                'target_lang': 'fr',
-                'terms': {'friend': 'ami'}
-            })
-            assert response.status_code == 200
+    with patch('routes.api.translator', mock_translator):
+        # Add custom terminology
+        response = client.post('/api/translate/terminology', json={
+            'source_lang': 'en',
+            'target_lang': 'fr',
+            'terms': {'Hello': 'Salut'}
+        })
+        assert response.status_code == 200
 
-            # Test translation with custom terms
-            response = client.post('/api/translate', json={
-                'text': 'Hello friend',
-                'target_language': 'fr'
-            })
-            assert response.status_code == 200
-            assert 'ami' in response.json['translated_text']
+        # Test translation with custom terms
+        response = client.post('/api/translate', json={
+            'text': 'Hello',
+            'target_language': 'fr'
+        })
+        assert response.status_code == 200
+        assert response.json['translated_text'] == 'Salut'
 
 def test_documentation_endpoint_integration(client):
     test_code = '''"""Test function"""

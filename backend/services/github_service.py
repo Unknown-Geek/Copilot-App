@@ -53,17 +53,17 @@ class GitHubService:
                 timeout=5
             )
             if response.status_code == 401:
-                return False
+                raise ValueError("Invalid GitHub credentials")
             response.raise_for_status()
             return True
-        except requests.exceptions.RequestException:
-            return False
+        except requests.exceptions.RequestException as e:
+            raise ValueError(f"GitHub authentication failed: {str(e)}")
 
     def _check_rate_limit(self) -> bool:
         """Check if we're within GitHub's rate limits"""
         if time.time() < self.rate_limit_reset:
             if self.rate_limit_remaining <= 0:
-                return False
+                raise ValueError("GitHub API rate limit exceeded")
         return True
 
     def _update_rate_limit(self, response: requests.Response) -> None:
@@ -174,6 +174,47 @@ class GitHubService:
         except Exception as e:
             logging.error(f"Repository analysis failed: {str(e)}")
             return {'error': f'Analysis failed: {str(e)}'}
+
+    @lru_cache(maxsize=100)
+    def analyze_repository_advanced(self, repo: str) -> Dict:
+        """Advanced repository analysis with caching"""
+        if not self._validate_credentials():
+            raise ValueError("Invalid GitHub credentials")
+            
+        # Get base repository info
+        repo_info = self._get_cached_repo_info(repo)
+        
+        # Get code quality metrics
+        code_quality = self._analyze_code_quality(repo)
+        
+        # Get commit patterns
+        commit_patterns = self._analyze_commit_patterns(repo)
+        
+        # Get contributor statistics
+        contributor_stats = self._analyze_contributors(repo)
+        
+        return {
+            'basic_info': repo_info,
+            'code_quality': code_quality,
+            'commit_patterns': commit_patterns,
+            'contributor_stats': contributor_stats,
+            'analysis_timestamp': time.time()
+        }
+
+    def batch_process_repositories(self, repos: List[str]) -> List[Dict]:
+        """Process multiple repositories in parallel"""
+        from concurrent.futures import ThreadPoolExecutor
+        
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            results = list(executor.map(self.analyze_repository_advanced, repos))
+        
+        return results
+
+    @lru_cache(maxsize=1000)
+    def _get_cached_repo_info(self, repo: str) -> Dict:
+        """Cache repository information"""
+        cache_key = f"{repo}_{int(time.time() / 3600)}"  # Cache for 1 hour
+        return self._fetch_repo_info(repo)
 
     def batch_process_repositories(self, repos: List[Dict[str, str]]) -> Dict[str, Any]:
         """Process multiple repositories in parallel"""

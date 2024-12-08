@@ -1,6 +1,8 @@
-from azure.ai.textanalytics import TextAnalyticsClient
+import requests
+from azure.ai.translation.text import TextTranslationClient
 from azure.core.credentials import AzureKeyCredential
-from typing import Dict, List, Optional, Any
+from azure.core.exceptions import HttpResponseError
+from typing import Dict, List, Optional, Any, Union
 from config import Config
 from functools import lru_cache
 import time
@@ -18,14 +20,29 @@ class TranslationError(Exception):
 
 class TranslatorService:
     def __init__(self):
-        self.supported_languages = {'en', 'es', 'fr', 'de', 'ja', 'zh'}
-        self.client = TextAnalyticsClient(
-            endpoint=Config.AZURE_ENDPOINT,
-            credential=AzureKeyCredential(Config.AZURE_KEY)
+        self.client = TextTranslationClient(
+            credential=AzureKeyCredential(Config.AZURE_KEY),
+            endpoint=Config.AZURE_ENDPOINT
         )
         self.rate_limit = RateLimitConfig()
         self.last_request_time = 0
         self.custom_terms: Dict[str, Dict[str, str]] = {}
+
+        self._supported_languages = None
+
+    def get_supported_languages(self) -> Dict[str, Any]:
+        """Get list of supported languages for translation"""
+        if not self._supported_languages:
+            try:
+                response = self.client.get_supported_languages()
+                self._supported_languages = {
+                    'translation': response.translation,
+                    'transliteration': response.transliteration,
+                    'dictionary': response.dictionary
+                }
+            except HttpResponseError as e:
+                return {'error': f'Failed to get languages: {str(e)}'}
+        return self._supported_languages
 
     def add_custom_terminology(self, source_lang: str, target_lang: str, terms: Dict[str, str]) -> None:
         """Add custom terminology for specific language pair."""
@@ -54,63 +71,108 @@ class TranslatorService:
         self.last_request_time = time.time()
 
     def batch_translate(self, texts: List[str], target_lang: str, source_lang: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Translate multiple texts in parallel with rate limiting."""
+        """Translate multiple texts efficiently"""
         if not texts:
             return []
 
-        def translate_single(text: str) -> Dict[str, Any]:
-            for attempt in range(self.rate_limit.max_retries):
-                try:
-                    self._rate_limit_wait()
-                    result = self.translate(text, target_lang, source_lang)
-                    if 'error' not in result:
-                        return result
-                    time.sleep(self.rate_limit.backoff_factor ** attempt)
-                except Exception as e:
-                    if attempt == self.rate_limit.max_retries - 1:
-                        return {'error': str(e)}
-                    time.sleep(self.rate_limit.backoff_factor ** attempt)
-            return {'error': 'Max retries exceeded'}
+        try:
+            self._rate_limit_wait()
+            response = self.client.translate(
+                content=texts,
+                to=[target_lang],
+                from_language=source_lang
+            )
 
-        results = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(translate_single, text): i for i, text in enumerate(texts)}
-            for future in as_completed(futures):
-                results.append((futures[future], future.result()))
-        
-        # Restore original order
-        return [result for _, result in sorted(results, key=lambda x: x[0])]
+            results = []
+            for translation in response:
+                if translation.translations:
+                    result = {
+                        'translated_text': translation.translations[0].text,
+                        'detected_language': translation.detected_language.language if translation.detected_language else source_lang,
+                        'confidence': translation.detected_language.score if translation.detected_language else 1.0
+                    }
+                    
+                    # Apply custom terminology
+                    result['translated_text'] = self.apply_custom_terms(
+                        result['translated_text'],
+                        result['detected_language'],
+                        target_lang
+                    )
+                    
+                    results.append(result)
+                else:
+                    results.append({'error': 'Translation failed'})
+
+            return results
+
+        except HttpResponseError as e:
+            return [{'error': f'Batch translation failed: {str(e)}'} for _ in texts]
+        except Exception as e:
+            return [{'error': f'Unexpected error: {str(e)}'} for _ in texts]
 
     @lru_cache(maxsize=1000) 
     def translate(self, text: str, target_lang: str, source_lang: Optional[str] = None) -> Dict[str, Any]:
-        if target_lang not in self.supported_languages:
-            return {'error': f'Unsupported target language: {target_lang}'}
-
+        """Translate text to target language"""
         try:
-            language_detection = self.client.detect_language([text])[0]
-            detected_lang = language_detection.primary_language.iso6391_name
+            self._rate_limit_wait()
 
-            result = self.client.translate_document(
-                documents=[{"id": "1", "text": text}],
-                target_language=target_lang,
-                source_language=source_lang if source_lang else detected_lang
-            )[0]
+            # Make translation request
+            response = self.client.translate(
+                content=[text],
+                to=[target_lang],
+                from_language=source_lang,
+                include_sentence_length=True
+            )
 
-            if result.is_error:
-                return {'error': f'Translation failed: {result.error.message}'}
+            if not response or not response[0].translations:
+                return {'error': 'Translation failed - no result'}
 
-            translated_text = result.translations[0].text
-            translated_text = self.apply_custom_terms(
-                translated_text, 
-                source_lang if source_lang else detected_lang,
+            translation = response[0]
+            result = {
+                'translated_text': translation.translations[0].text,
+                'detected_language': translation.detected_language.language if translation.detected_language else source_lang,
+                'confidence': translation.detected_language.score if translation.detected_language else 1.0,
+            }
+
+            # Add sentence length metrics if available
+            if translation.translations[0].sent_len:
+                result['metrics'] = {
+                    'source_length': translation.translations[0].sent_len.src_sent_len,
+                    'target_length': translation.translations[0].sent_len.trans_sent_len
+                }
+
+            # Apply custom terminology
+            result['translated_text'] = self.apply_custom_terms(
+                result['translated_text'],
+                result['detected_language'],
                 target_lang
             )
 
-            return {
-                'translated_text': translated_text,
-                'detected_language': detected_lang,
-                'confidence': language_detection.primary_language.confidence_score
-            }
-            
-        except Exception as e:
+            return result
+
+        except HttpResponseError as e:
             return {'error': f'Translation failed: {str(e)}'}
+        except Exception as e:
+            return {'error': f'Unexpected error: {str(e)}'}
+
+    def transliterate(self, text: str, language: str, from_script: str, to_script: str) -> Dict[str, Any]:
+        """Convert text between different scripts of the same language"""
+        try:
+            self._rate_limit_wait()
+            response = self.client.transliterate(
+                content=[text],
+                language=language,
+                from_script=from_script,
+                to_script=to_script
+            )
+            
+            if not response or not response[0]:
+                return {'error': 'Transliteration failed'}
+
+            return {
+                'text': response[0].text,
+                'script': response[0].script
+            }
+
+        except HttpResponseError as e:
+            return {'error': f'Transliteration failed: {str(e)}'}

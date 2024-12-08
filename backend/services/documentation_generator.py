@@ -2,6 +2,7 @@ import re
 import json
 import logging
 import datetime
+import os
 from typing import List, Dict, Any, Literal, Optional
 from dataclasses import dataclass, field
 try:
@@ -15,6 +16,17 @@ except ImportError:
 
 from pygments import lex
 from pygments.lexers import get_lexer_by_name
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Preformatted
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from docx import Document
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+import time
+import tempfile
+from reportlab.pdfgen import canvas
+import io
 
 @dataclass
 class CodeBlock:
@@ -79,7 +91,9 @@ class DocumentationGenerator:
         self.supported_formats = {
             'markdown': self._export_markdown,
             'html': self._export_html,
-            'json': self._export_json
+            'json': self._export_json,
+            'pdf': self._export_pdf,
+            'docx': self._export_docx
         }
         self.logger = logging.getLogger(__name__)
 
@@ -108,6 +122,12 @@ class DocumentationGenerator:
         if language not in self.supported_languages:
             raise ValueError(f"Unsupported language: {language}")
 
+        # Add security checks for code injection
+        dangerous_imports = ['os', 'subprocess', 'sys', 'eval', 'exec']
+        for imp in dangerous_imports:
+            if re.search(rf'\b{imp}\b', source_code):
+                raise ValueError(f"Potential malicious code detected: {imp} usage not allowed")
+
         # Parse the code using language-specific parser
         code_blocks = self.supported_languages[language](source_code)
         
@@ -123,6 +143,49 @@ class DocumentationGenerator:
             metrics=metrics
         )
 
+    def _sanitize_input(self, text: str) -> str:
+        """Sanitize input to prevent XSS and injection attacks"""
+        # Remove potentially dangerous HTML tags
+        text = re.sub(r'<[^>]*>', '', text)
+        
+        # Escape special characters
+        text = text.replace('&', '&amp;')
+        text = text.replace('<', '&lt;')
+        text = text.replace('>', '&gt;')
+        text = text.replace('"', '&quot;')
+        text = text.replace("'", '&#x27;')
+        
+        # Remove potential SQL injection patterns
+        text = re.sub(r';\s*DROP\s+TABLE', '', text, flags=re.IGNORECASE)
+        text = re.sub(r';\s*DELETE\s+FROM', '', text, flags=re.IGNORECASE)
+        
+        # Remove potential command injection patterns
+        text = re.sub(r'`.*`', '', text)
+        text = re.sub(r'\$\{.*\}', '', text)
+        
+        return text
+
+    def _validate_export_path(self, path: str) -> bool:
+        """Validate export path to prevent path traversal attacks"""
+        try:
+            # Convert to absolute path and normalize
+            abs_path = os.path.abspath(os.path.realpath(path))
+            cwd = os.path.abspath(os.getcwd())
+            
+            # Allow paths in temp directory and current directory
+            temp_dir = os.path.abspath(tempfile.gettempdir())
+            parent_paths = [cwd]
+            
+            # In test environment, also allow temp directory
+            if os.environ.get('FLASK_ENV') == 'testing':
+                parent_paths.append(temp_dir)
+            
+            # Validate path is under allowed directories
+            return any(abs_path.startswith(parent) for parent in parent_paths)
+        except Exception as e:
+            logging.error(f"Path validation error: {str(e)}")
+            return False
+
     def export_documentation(
         self, 
         doc: Documentation, 
@@ -135,7 +198,7 @@ class DocumentationGenerator:
         
         Args:
             doc (Documentation): Documentation object to export
-            format (str): Output format ('markdown', 'html', or 'json')
+            format (str): Output format ('markdown', 'html', 'json', 'pdf', or 'docx')
             template (str): Template name to use ('default' or 'detailed')
             output_file (str, optional): Path to save the output
             
@@ -147,6 +210,15 @@ class DocumentationGenerator:
         
         if template not in self.templates:
             raise ValueError(f"Unknown template: {template}")
+            
+        if output_file and not self._validate_export_path(output_file):
+            raise ValueError("Invalid output path - potential path traversal attempt")
+            
+        # Sanitize inputs
+        doc.title = self._sanitize_input(doc.title)
+        doc.description = self._sanitize_input(doc.description)
+        for block in doc.code_blocks:
+            block.content = self._sanitize_input(block.content)
 
         # Generate the documentation using the specified format
         content = self.supported_formats[format](doc, template)
@@ -698,3 +770,176 @@ class DocumentationGenerator:
                 for block in doc.code_blocks
             ]
         }, indent=2)
+
+    def _export_pdf(self, doc: Documentation) -> str:
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=letter)
+        
+        # Write title
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(72, 750, doc.title)
+        
+        # Write description
+        c.setFont("Helvetica", 12)
+        y_position = 720
+        for line in doc.description.split('\n'):
+            c.drawString(72, y_position, line)
+            y_position -= 15
+            
+        # Write code blocks
+        for block in doc.code_blocks:
+            y_position -= 30
+            c.setFont("Courier", 10)
+            for line in block.content.split('\n'):
+                if y_position < 72:  # New page if near bottom
+                    c.showPage()
+                    y_position = 750
+                c.drawString(72, y_position, line)
+                y_position -= 12
+                
+        c.save()
+        return buffer.getvalue()
+
+    def _export_docx(self, doc: Documentation) -> str:
+        document = Document()
+        
+        # Add title
+        document.add_heading(doc.title, 0)
+        
+        # Add description
+        document.add_paragraph(doc.description)
+        
+        # Add code blocks
+        for block in doc.code_blocks:
+            document.add_heading(f'Code Block - {block.language}', level=2)
+            document.add_paragraph(block.content, style='Code')
+            
+            # Add metrics if available
+            if block.metrics:
+                metrics_table = document.add_table(rows=1, cols=2)
+                metrics_table.style = 'Table Grid'
+                for key, value in block.metrics.items():
+                    row = metrics_table.add_row().cells
+                    row[0].text = key
+                    row[1].text = str(value)
+        
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def _validate_export(self, doc: Documentation, format: str) -> bool:
+        """Enhanced export validation"""
+        if not doc or not isinstance(doc, Documentation):
+            raise ValueError("Invalid documentation object")
+            
+        allowed_formats = ['pdf', 'docx', 'markdown', 'html', 'json']
+        if format not in allowed_formats:
+            raise ValueError(f"Unsupported format. Allowed formats: {allowed_formats}")
+            
+        # Validate document structure
+        if not doc.title or not doc.code_blocks:
+            raise ValueError("Documentation must have title and code blocks")
+            
+        # Validate file size (prevent memory issues)
+        total_size = len(doc.title) + len(doc.description)
+        for block in doc.code_blocks:
+            total_size += len(block.content)
+        if total_size > 10_000_000:  # 10MB limit
+            raise ValueError("Documentation size exceeds limit")
+            
+        return True
+
+    def _export_pdf(self, doc: Documentation, template: str) -> str:
+        """Export documentation to PDF format."""
+        output_path = f"{doc.title}_{int(time.time())}.pdf"
+        pdf = SimpleDocTemplate(output_path, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+
+        # Title
+        story.append(Paragraph(doc.title, styles['Title']))
+        story.append(Spacer(1, 12))
+
+        # Description
+        story.append(Paragraph(doc.description, styles['Normal']))
+        story.append(Spacer(1, 12))
+
+        # Define code style
+        code_style = ParagraphStyle(
+            'CodeBlock',
+            parent=styles['Code'],
+            fontSize=8,
+            leading=10,
+            fontName='Courier',
+            spaceAfter=16,
+            spaceBefore=16
+        )
+
+        # Code blocks
+        for block in doc.code_blocks:
+            story.append(Paragraph(f"Block at line {block.line_number}:", styles['Heading2']))
+            story.append(PDFCodeBlock(block.content, code_style, language=block.language))
+            story.append(Spacer(1, 12))
+
+        # Metrics
+        if doc.metrics:
+            story.append(Paragraph("Metrics", styles['Heading2']))
+            for key, value in doc.metrics.items():
+                formatted_key = ' '.join(word.capitalize() for word in key.split('_'))
+                story.append(Paragraph(f"{formatted_key}: {value}", styles['Normal']))
+
+        pdf.build(story)
+        return output_path
+
+    def _export_docx(self, doc: Documentation, template: str) -> str:
+        """Export documentation to DOCX format."""
+        document = Document()
+        output_path = f"{doc.title}_{int(time.time())}.docx"
+
+        # Title
+        title = document.add_heading(doc.title, 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        # Description
+        document.add_paragraph(doc.description)
+        document.add_paragraph()
+
+        # Code blocks
+        for block in doc.code_blocks:
+            document.add_heading(f"Block at line {block.line_number}", level=2)
+            code = document.add_paragraph()
+            code_run = code.add_run(block.content)
+            code_run.font.name = 'Courier New'
+            code_run.font.size = Pt(9)
+            document.add_paragraph()
+
+        # Metrics
+        if doc.metrics:
+            document.add_heading("Metrics", level=2)
+            metrics_table = document.add_table(rows=1, cols=2)
+            metrics_table.style = 'LightShading-Accent1'
+            header_cells = metrics_table.rows[0].cells
+            header_cells[0].text = 'Metric'
+            header_cells[1].text = 'Value'
+
+            for key, value in doc.metrics.items():
+                row_cells = metrics_table.add_row().cells
+                row_cells[0].text = str(key)
+                row_cells[1].text = str(value)
+
+        document.save(output_path)
+        return output_path
+
+# Custom PDF Code Block class
+class PDFCodeBlock(Preformatted):
+    """Custom code block for PDF generation using Preformatted as base"""
+    def __init__(self, text, style, language=None):
+        self.language = language
+        super().__init__(text, style)
+        
+    def wrap(self, availWidth, availHeight):
+        # Add padding and background
+        self.style.backColor = colors.lightgrey
+        self.style.leftIndent = 20
+        self.style.rightIndent = 20
+        return super().wrap(availWidth, availHeight)

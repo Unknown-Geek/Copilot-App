@@ -8,23 +8,33 @@ import logging
 import secrets
 from datetime import timedelta
 
-try:
-    from flask_limiter import Limiter
-    from flask_limiter.util import get_remote_address
-    HAS_LIMITER = True
-except ImportError:
-    HAS_LIMITER = False
+# Import Limiter after Flask
+from flask_limiter import Limiter, HEADERS
+from flask_limiter.util import get_remote_address
 
 # Change relative import to absolute
 from routes import api
 
-# Initialize limiter globally
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri="memory://",
-    default_limits=["5 per minute"],
-    strategy="fixed-window"
-)
+# Initialize limiter globally with proper error handling
+if os.getenv('FLASK_ENV') == 'testing':
+    # Use a mock limiter for testing
+    class MockLimiter:
+        def __init__(self, *args, **kwargs):
+            pass
+        def init_app(self, app):
+            pass
+        def limit(self, *args, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+    limiter = MockLimiter()
+else:
+    limiter = Limiter(
+        key_func=get_remote_address,
+        storage_uri="memory://",
+        default_limits=["5 per minute"],
+        strategy="fixed-window"
+    )
 
 def create_app(testing=False):
     load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))

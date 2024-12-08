@@ -2,10 +2,12 @@ import unittest
 from unittest.mock import patch, Mock
 import tempfile
 import json
+import os
 from services.documentation_generator import DocumentationGenerator
 
 class TestDocumentationFeatures(unittest.TestCase):
     def setUp(self):
+        os.environ['FLASK_ENV'] = 'testing'  # Set testing environment
         self.generator = DocumentationGenerator()
         self.test_code = {
             'python': """
@@ -44,6 +46,10 @@ class TestDocumentationFeatures(unittest.TestCase):
                 }
             """
         }
+        
+    def tearDown(self):
+        if 'FLASK_ENV' in os.environ:
+            del os.environ['FLASK_ENV']
 
     def test_all_features(self):
         """Test all documentation features together"""
