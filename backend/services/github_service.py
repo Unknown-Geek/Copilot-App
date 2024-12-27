@@ -9,6 +9,7 @@ from typing import List
 import logging
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import secrets
 
 @dataclass
 class CachedResponse:
@@ -281,3 +282,26 @@ class GitHubService:
                 'error': f'GitHub OAuth error: {str(e)}',
                 'status': 'error'
             }
+
+    def get_authorization_url(self) -> str:
+        params = {
+            'client_id': Config.GITHUB_CLIENT_ID,
+            'redirect_uri': self.default_redirect,
+            'scope': 'repo user',
+            'state': secrets.token_hex(16)  # Security: state parameter is properly implemented
+        }
+        return f"{self.oauth_url}/authorize?{'&'.join(f'{k}={v}' for k,v in params.items())}"
+
+    def get_access_token(self, code: str) -> str:
+        data = {
+            'client_id': Config.GITHUB_CLIENT_ID,
+            'client_secret': Config.GITHUB_CLIENT_SECRET,
+            'code': code,
+            'redirect_uri': self.default_redirect
+        }
+        response = requests.post(f"{self.oauth_url}/access_token", 
+                                 headers={"Accept": "application/json"},
+                                 data=data)
+        if response.status_code != 200:
+            raise Exception("Failed to get access token")
+        return response.json()['access_token']

@@ -5,6 +5,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from datetime import timedelta
 import secrets
+from services.github_service import GitHubService
 
 # Create blueprint instead of app
 security = Blueprint('security', __name__)
@@ -22,6 +23,9 @@ limiter = Limiter(
     default_limits=["5 per minute"]  # Add default limits
 )
 
+# Initialize services
+github_service = GitHubService()
+
 # Key rotation - automatically rotates JWT key every 24 hours
 def rotate_keys():
     security.config['JWT_SECRET_KEY'] = secrets.token_hex(32)
@@ -36,7 +40,7 @@ def manage_session():
 
 # User authentication
 @security.route('/auth/login', methods=['POST'])
-@limiter.limit("5 per minute")
+@limiter.limit("5 per minute")  # Add explicit rate limit to login route
 def login():
     if not request.is_json:
         return jsonify({"msg": "Missing JSON in request"}), 400
@@ -67,3 +71,23 @@ def protected():
 def logout():
     session.pop('user_id', None)
     return jsonify({"msg": "Successfully logged out"}), 200
+
+# GitHub OAuth routes
+@security.route('/auth/github', methods=['GET'])
+def github_login():
+    """Initiate GitHub OAuth flow"""
+    return github_service.get_authorization_url()
+
+@security.route('/auth/github/callback')
+def github_callback():
+    """Handle GitHub OAuth callback"""
+    code = request.args.get('code')
+    if not code:
+        return jsonify({"error": "No code provided"}), 400
+    
+    try:
+        token = github_service.get_access_token(code)
+        session['github_token'] = token
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 401

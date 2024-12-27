@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_jwt_extended import create_access_token
 import pytest
+from unittest.mock import patch
 from backend import app, limiter
 
 @pytest.fixture
@@ -92,3 +93,19 @@ def test_logout(client):
     
     with client.session_transaction() as sess:
         assert 'user_id' not in sess
+
+@patch('services.github_service.GitHubService.get_access_token')
+def test_github_auth_flow(mock_get_access_token, client):
+    """Test GitHub OAuth flow"""
+    # Mock the get_access_token method to return a valid token
+    mock_get_access_token.return_value = 'mock_access_token'
+    
+    # Test authorization URL generation
+    response = client.get('/auth/github')
+    assert response.status_code == 200
+    assert 'github.com/login/oauth/authorize' in response.get_data(as_text=True)
+    
+    # Test callback with mock code
+    response = client.get('/auth/github/callback?code=test_code')
+    assert response.status_code == 200
+    assert response.json == {"status": "success"}
