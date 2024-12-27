@@ -7,10 +7,10 @@ import sys
 import logging
 import secrets
 from datetime import timedelta
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 try:
-    from flask_limiter import Limiter
-    from flask_limiter.util import get_remote_address
     HAS_LIMITER = True
 except ImportError:
     HAS_LIMITER = False

@@ -1,20 +1,25 @@
 import logging
+import os
+from dotenv import load_dotenv
 from azure.ai.textanalytics import TextAnalyticsClient
 from azure.core.credentials import AzureKeyCredential
 from config import Config
 
 class AzureService:
     def __init__(self):
+        load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+        self.azure_key = os.getenv('AZURE_KEY')
+        self.azure_endpoint = os.getenv('AZURE_ENDPOINT')
         self.client = None
         self.initialize()
 
     def initialize(self):
-        if not Config.AZURE_KEY or not Config.AZURE_ENDPOINT:
+        if not self.azure_key or not self.azure_endpoint:
             raise ValueError("Azure credentials not properly configured")
         
         self.client = TextAnalyticsClient(
-            endpoint=Config.AZURE_ENDPOINT,
-            credential=AzureKeyCredential(Config.AZURE_KEY.strip())
+            endpoint=self.azure_endpoint,
+            credential=AzureKeyCredential(self.azure_key.strip())
         )
 
     def analyze_sentiment(self, code: str, language: str) -> dict:
