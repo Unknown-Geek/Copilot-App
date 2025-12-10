@@ -1,0 +1,142 @@
+{
+    "name": "docgen-multilingual",
+    "displayName": "Code Multilingual Documentation Generator",
+    "description": "Generate multilingual documentation from code using Azure Cognitive Services",
+    "version": "1.0.0",
+    "publisher": "docgen",
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Other"
+    ],
+    "keywords": [
+        "documentation",
+        "multilingual",
+        "translation",
+        "azure",
+        "code analysis"
+    ],
+    "activationEvents": [],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "docgen.generateDocs",
+                "title": "DocGen: Generate Documentation",
+                "icon": "$(book)"
+            },
+            {
+                "command": "docgen.translateDocs",
+                "title": "DocGen: Translate Documentation",
+                "icon": "$(globe)"
+            },
+            {
+                "command": "docgen.exportDocs",
+                "title": "DocGen: Export Documentation",
+                "icon": "$(export)"
+            },
+            {
+                "command": "docgen.analyzeCode",
+                "title": "DocGen: Analyze Code",
+                "icon": "$(search)"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "docgen.generateDocs",
+                "key": "ctrl+shift+d",
+                "mac": "cmd+shift+d",
+                "when": "editorTextFocus"
+            }
+        ],
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "docgen.generateDocs",
+                    "group": "docgen@1",
+                    "when": "editorHasSelection || editorTextFocus"
+                },
+                {
+                    "command": "docgen.analyzeCode",
+                    "group": "docgen@2",
+                    "when": "editorHasSelection || editorTextFocus"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "DocGen - Multilingual Documentation",
+            "properties": {
+                "docgen.backendUrl": {
+                    "type": "string",
+                    "default": "http://localhost:5000",
+                    "description": "URL of the DocGen backend server"
+                },
+                "docgen.defaultTargetLanguage": {
+                    "type": "string",
+                    "default": "es",
+                    "enum": [
+                        "es",
+                        "fr",
+                        "de",
+                        "it",
+                        "pt",
+                        "zh",
+                        "ja",
+                        "ko",
+                        "ar",
+                        "hi",
+                        "ru"
+                    ],
+                    "enumDescriptions": [
+                        "Spanish",
+                        "French",
+                        "German",
+                        "Italian",
+                        "Portuguese",
+                        "Chinese",
+                        "Japanese",
+                        "Korean",
+                        "Arabic",
+                        "Hindi",
+                        "Russian"
+                    ],
+                    "description": "Default target language for translation"
+                },
+                "docgen.defaultExportFormat": {
+                    "type": "string",
+                    "default": "markdown",
+                    "enum": [
+                        "markdown",
+                        "html",
+                        "json"
+                    ],
+                    "description": "Default format for exporting documentation"
+                },
+                "docgen.showStatusBar": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show DocGen status in the status bar"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "node esbuild.js",
+        "watch": "node esbuild.js --watch",
+        "package": "vsce package --no-dependencies",
+        "lint": "eslint src --ext ts"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.13.0",
+        "@typescript-eslint/parser": "^6.13.0",
+        "esbuild": "^0.19.8",
+        "eslint": "^8.55.0",
+        "typescript": "^5.3.2"
+    },
+    "dependencies": {}
+}

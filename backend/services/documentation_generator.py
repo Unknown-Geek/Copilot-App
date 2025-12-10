@@ -2,8 +2,19 @@ import re
 import json
 import logging
 import datetime
-from typing import List, Dict, Any, Literal, Optional
+from io import BytesIO
+from typing import List, Dict, Any, Literal, Optional, Union
 from dataclasses import dataclass, field
+
+# Remove pdfkit import
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Preformatted
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from docx import Document
+from pygments import lex
+from pygments.lexers import get_lexer_by_name
+
 try:
     import radon.metrics
     import radon.complexity
@@ -12,9 +23,6 @@ try:
 except ImportError:
     RADON_AVAILABLE = False
     logging.warning("radon package not found. Advanced metrics will be limited.")
-
-from pygments import lex
-from pygments.lexers import get_lexer_by_name
 
 @dataclass
 class CodeBlock:
@@ -31,6 +39,13 @@ class Documentation:
     language: str
     generated_at: str
     metrics: Dict[str, Any] = field(default_factory=dict)
+
+    def __init__(self, title: str, description: str, language: str, code_blocks: List[CodeBlock], metrics: Dict[str, Any]):
+        self.title = title
+        self.description = description
+        self.language = language
+        self.code_blocks = code_blocks
+        self.metrics = metrics
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert Documentation to dictionary"""
@@ -53,6 +68,13 @@ class DocumentationGenerator:
     def __init__(self):
         # Add RADON_AVAILABLE as class attribute
         self.RADON_AVAILABLE = RADON_AVAILABLE
+        self.exporters = {
+            'markdown': self._export_markdown,
+            'html': self._export_html,
+            'json': self._export_json,
+            'pdf': self._export_pdf,
+            'docx': self._export_docx
+        }
         self.supported_languages = {
             'python': self._parse_python,
             'javascript': self._parse_javascript,
@@ -83,77 +105,158 @@ class DocumentationGenerator:
         }
         self.logger = logging.getLogger(__name__)
 
-    def generate(self, source_code: str, language: str, title: str = None, description: str = None) -> Documentation:
+    def _calculate_metrics(self, code_blocks: List[CodeBlock]) -> Dict[str, Any]:
+        total_blocks = len(code_blocks)
+        total_lines = sum(block.content.count('\n') + 1 for block in code_blocks)
+        average_block_size = total_lines / total_blocks if total_blocks > 0 else 0
+        average_complexity = 1.0  # Placeholder for actual complexity calculation
+        max_complexity = 1.0  # Placeholder for actual complexity calculation
+        
+        return {
+            'total_blocks': total_blocks,
+            'total_lines': total_lines,
+            'average_block_size': average_block_size,
+            'average_complexity': average_complexity,
+            'max_complexity': max_complexity
+        }
+
+    def _parse_code_blocks(self, code: str, language: str) -> List[CodeBlock]:
+        """Parse code into code blocks based on the language."""
+        if language == 'python':
+            return self._parse_python(code)
+        elif language == 'javascript':
+            return self._parse_javascript(code)
+        elif language == 'java':
+            return self._parse_java(code)
+        elif language == 'cpp':
+            return self._parse_cpp(code)
+        elif language == 'csharp':
+            return self._parse_csharp(code)
+        else:
+            raise ValueError(f"Unsupported language: {language}")
+
+    def _parse_python(self, code: str) -> List[CodeBlock]:
+        """Parse Python code into code blocks."""
+        # Simple example: split by function definitions
+        blocks = []
+        lines = code.split('\n')
+        current_block = []
+        for line in lines:
+            if line.strip().startswith('def ') or line.strip().startswith('class '):
+                if current_block:
+                    blocks.append(CodeBlock(content='\n'.join(current_block)))
+                    current_block = []
+            current_block.append(line)
+        if current_block:
+            blocks.append(CodeBlock(content='\n'.join(current_block)))
+        return blocks
+
+    def _parse_javascript(self, code: str) -> List[CodeBlock]:
+        """Parse JavaScript code into code blocks."""
+        # Simple example: split by function definitions
+        blocks = []
+        lines = code.split('\n')
+        current_block = []
+        for line in lines:
+            if line.strip().startswith('function ') or line.strip().startswith('class '):
+                if current_block:
+                    blocks.append(CodeBlock(content='\n'.join(current_block)))
+                    current_block = []
+            current_block.append(line)
+        if current_block:
+            blocks.append(CodeBlock(content='\n'.join(current_block)))
+        return blocks
+
+    def _parse_java(self, code: str) -> List[CodeBlock]:
+        """Parse Java code into code blocks."""
+        # Simple example: split by class and method definitions
+        blocks = []
+        lines = code.split('\n')
+        current_block = []
+        for line in lines:
+            if line.strip().startswith('public class ') or line.strip().startswith('public void '):
+                if current_block:
+                    blocks.append(CodeBlock(content='\n'.join(current_block)))
+                    current_block = []
+            current_block.append(line)
+        if current_block:
+            blocks.append(CodeBlock(content='\n'.join(current_block)))
+        return blocks
+
+    def _parse_cpp(self, code: str) -> List[CodeBlock]:
+        """Parse C++ code into code blocks."""
+        blocks = []
+        lines = code.split('\n')
+        current_block = []
+        for line in lines:
+            if line.strip().startswith('void ') or line.strip().startswith('class '):
+                if current_block:
+                    blocks.append(CodeBlock(content='\n'.join(current_block)))
+                    current_block = []
+            current_block.append(line)
+        if current_block:
+            blocks.append(CodeBlock(content='\n'.join(current_block)))
+        return blocks
+
+    def _parse_csharp(self, code: str) -> List[CodeBlock]:
+        """Parse C# code into code blocks."""
+        blocks = []
+        lines = code.split('\n')
+        current_block = []
+        for line in lines:
+            if line.strip().startswith('public void ') or line.strip().startswith('public class '):
+                if current_block:
+                    blocks.append(CodeBlock(content='\n'.join(current_block)))
+                    current_block = []
+            current_block.append(line)
+        if current_block:
+            blocks.append(CodeBlock(content='\n'.join(current_block)))
+        return blocks
+
+    def generate(self, code: str, language: str) -> Documentation:
         """
         Generate documentation for the given source code.
-        
+
         Args:
-            source_code (str): The source code to generate documentation for
+            code (str): The source code to generate documentation for
             language (str): Programming language of the source code
-            title (str, optional): Documentation title
-            description (str, optional): Documentation description
-            
+
         Returns:
             Documentation: Generated documentation object
-            
-        Raises:
-            ValueError: If source_code is empty or language is not supported
-        """
-        if not source_code or source_code.isspace():
-            raise ValueError("Code cannot be empty")
-            
-        if not isinstance(source_code, str):
-            raise ValueError("Code must be a string")
 
+        Raises:
+            ValueError: If code is empty or language is not supported
+        """
+        if not code:
+            raise ValueError("Code cannot be empty")
         if language not in self.supported_languages:
             raise ValueError(f"Unsupported language: {language}")
 
-        # Parse the code using language-specific parser
-        code_blocks = self.supported_languages[language](source_code)
-        
-        # Generate metrics
-        metrics = self._generate_metrics(code_blocks)
-        
+        code_blocks = self._parse_code_blocks(code, language)
+        metrics = self._calculate_metrics(code_blocks)
+
         return Documentation(
-            title=title or f"{language.capitalize()} Documentation",
-            description=description or "Auto-generated documentation",
-            code_blocks=code_blocks,
+            title=f"{language.capitalize()} Documentation",
+            description="Auto-generated documentation",
             language=language,
-            generated_at=datetime.datetime.now().isoformat(),
+            code_blocks=code_blocks,
             metrics=metrics
         )
 
-    def export_documentation(
-        self, 
-        doc: Documentation, 
-        format: str = "markdown", 
-        template: str = "default",
-        output_file: Optional[str] = None
-    ) -> str:
-        """
-        Export documentation in the specified format using the specified template.
-        
-        Args:
-            doc (Documentation): Documentation object to export
-            format (str): Output format ('markdown', 'html', or 'json')
-            template (str): Template name to use ('default' or 'detailed')
-            output_file (str, optional): Path to save the output
-            
-        Returns:
-            str: Exported documentation content
-        """
-        if format not in self.supported_formats:
-            raise ValueError(f"Unsupported format: {format}")
-        
+    def export_documentation(self, doc: Documentation, format: str = 'markdown',
+                        template: str = 'default', output_path: str = None) -> Union[str, bytes]:
+        """Export documentation to the specified format."""
         if template not in self.templates:
-            raise ValueError(f"Unknown template: {template}")
-
-        # Generate the documentation using the specified format
-        content = self.supported_formats[format](doc, template)
+            raise ValueError(f"Invalid template: {template}")
+            
+        if format not in self.exporters:
+            raise ValueError(f"Invalid format: {format}")
         
-        # Save to file if specified
-        if output_file:
-            with open(output_file, 'w', encoding='utf-8') as f:
+        content = self.exporters[format](doc, template)
+        
+        if output_path:
+            mode = 'wb' if isinstance(content, bytes) else 'w'
+            with open(output_path, mode) as f:
                 f.write(content)
         
         return content
@@ -463,140 +566,86 @@ class DocumentationGenerator:
     def _export_markdown(self, doc: Documentation, template: str) -> str:
         """Export documentation to markdown format."""
         template_config = self.templates[template]
+        content = f"# {doc.title}\n\n"
         
-        # Generate table of contents for detailed template
-        toc = ""
-        if template == "detailed":
-            toc = self._generate_toc(doc)
+        if template == 'detailed':
+            content += "## Table of Contents\n"
+            for i, block in enumerate(doc.code_blocks):
+                content += f"{i+1}. Code Block {i+1}\n"
+            content += "\n## Code Blocks\n"
         
-        # Generate code blocks content
-        blocks_content = []
         for block in doc.code_blocks:
-            block_content = template_config['code_blocks'].format(
-                language=block.language,
-                content=block.content,
-                line_number=block.line_number,
-                loc=len(block.content.split('\n')),
-                complexity=self._calculate_complexity(block)
-            )
-            blocks_content.append(block_content)
+            content += f"```{doc.language}\n{block.content}\n```\n\n"
         
-        # Combine all sections
-        sections = [
-            template_config['title'].format(
-                title=doc.title,
-                generated_at=doc.generated_at
-            ),
-            template_config['description'].format(description=doc.description)
-        ]
+        if template == 'detailed':
+            content += "## Project Metrics\n"
+            for key, value in doc.metrics.items():
+                content += f"- {key}: {value}\n"
         
-        if template == "detailed" and toc:
-            sections.append(template_config['toc'].format(toc=toc))
-            
-        sections.extend(blocks_content)
-        
-        if doc.metrics:
-            sections.append(template_config['metrics'].format(
-                metrics=json.dumps(doc.metrics, indent=2)
-            ))
-        
-        return '\n\n'.join(sections)
+        return content
 
     def _export_html(self, doc: Documentation, template: str) -> str:
         """Export documentation to HTML format."""
-        markdown_content = self._export_markdown(doc, template)
-        
-        html_template = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>{title}</title>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                padding: 20px;
-                max-width: 1200px;
-                margin: 0 auto;
-                color: #333;
-            }}
-            pre {{
-                background-color: #f5f5f5;
-                padding: 15px;
-                border-radius: 5px;
-                overflow-x: auto;
-                font-family: 'Courier New', Courier, monospace;
-            }}
-            code {{
-                font-family: 'Courier New', Courier, monospace;
-                background-color: #f5f5f5;
-                padding: 2px 5px;
-                border-radius: 3px;
-            }}
-            h1, h2, h3 {{
-                color: #2c3e50;
-            }}
-            h1 {{
-                border-bottom: 2px solid #eee;
-                padding-bottom: 10px;
-            }}
-            .metrics {{
-                background-color: #f8f9fa;
-                padding: 15px;
-                border-radius: 5px;
-                margin: 20px 0;
-            }}
-            .code-block {{
-                margin: 20px 0;
-                border: 1px solid #ddd;
-                border-radius: 5px;
-            }}
-            .code-block-header {{
-                background-color: #f8f9fa;
-                padding: 10px;
-                border-bottom: 1px solid #ddd;
-                font-weight: bold;
-            }}
-            .timestamp {{
-                color: #666;
-                font-style: italic;
-                font-size: 0.9em;
-            }}
-            .toc {{
-                background-color: #f8f9fa;
-                padding: 15px;
-                border-radius: 5px;
-                margin: 20px 0;
-            }}
-            .toc ul {{
-                list-style-type: none;
-                padding-left: 20px;
-            }}
-            .metrics-table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin: 10px 0;
-            }}
-            .metrics-table th, .metrics-table td {{
-                padding: 8px;
-                border: 1px solid #ddd;
-                text-align: left;
-            }}
-            .metrics-table th {{
-                background-color: #f5f5f5;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="documentation">
-            {content}
+        template_config = self.templates[template]
+        return f"""<!DOCTYPE html>
+        <html>
+        <body>
+        <div class="code-block">
+        <pre><code>{doc.code_blocks[0].content}</code></pre>
         </div>
-    </body>
-    </html>
-    """
+        </body>
+        </html>"""
+
+    def _export_json(self, doc: Documentation, template: str) -> str:
+        """Export documentation to JSON format."""
+        return json.dumps({
+            'title': doc.title,
+            'description': doc.description,
+            'language': doc.language,
+            'metrics': doc.metrics,
+            'code_blocks': [
+                {
+                    'content': block.content,
+                    'language': block.language,
+                    'line_number': block.line_number,
+                    'metrics': {
+                        'loc': len(block.content.split('\n')),
+                        'complexity': self._calculate_complexity(block)
+                    }
+                }
+                for block in doc.code_blocks
+            ]
+        }, indent=2)
+
+    def _export_pdf(self, doc: Documentation, template: str) -> bytes:
+        """Export documentation to PDF format."""
+        from reportlab.pdfgen import canvas
+        from io import BytesIO
         
-        html_content = self._markdown_to_html(markdown_content)
-        return html_template.format(title=doc.title, content=html_content)
+        buffer = BytesIO()
+        pdf = canvas.Canvas(buffer)
+        pdf.drawString(100, 800, doc.title)
+        y_position = 750
+        for block in doc.code_blocks:
+            pdf.drawString(100, y_position, block.content)
+            y_position -= 20
+        pdf.save()
+        
+        return buffer.getvalue()
+
+    def _export_docx(self, doc: Documentation, template: str) -> bytes:
+        """Export documentation to DOCX format."""
+        from docx import Document
+        from io import BytesIO
+        
+        docx_doc = Document()
+        docx_doc.add_heading(doc.title, 0)
+        for block in doc.code_blocks:
+            docx_doc.add_paragraph(block.content)
+        
+        buffer = BytesIO()
+        docx_doc.save(buffer)
+        return buffer.getvalue()
 
     def _markdown_to_html(self, markdown_content: str) -> str:
         """Convert markdown to HTML with basic formatting."""
@@ -683,7 +732,6 @@ class DocumentationGenerator:
             'title': doc.title,
             'description': doc.description,
             'language': doc.language,
-            'generated_at': doc.generated_at,
             'metrics': doc.metrics,
             'code_blocks': [
                 {
@@ -698,3 +746,39 @@ class DocumentationGenerator:
                 for block in doc.code_blocks
             ]
         }, indent=2)
+
+    def _export_pdf(self, doc: Documentation, template: str) -> bytes:
+        """Export documentation to PDF format using reportlab."""
+        buffer = BytesIO()
+        doc_pdf = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        
+        # Create content
+        content = []
+        
+        # Add title
+        content.append(Paragraph(f"# {doc.language} Documentation", styles['Heading1']))
+        content.append(Spacer(1, 12))
+        
+        # Add code blocks with syntax highlighting
+        for block in doc.code_blocks:
+            content.append(Paragraph("Code:", styles['Heading2']))
+            content.append(Preformatted(block.content, styles['Code']))
+            content.append(Spacer(1, 12))
+        
+        doc_pdf.build(content)
+        return buffer.getvalue()
+
+    def _export_docx(self, doc: Documentation, template: str) -> bytes:
+        """Export documentation to DOCX format."""
+        docx_document = Document()
+        docx_document.add_heading(f"{doc.language} Documentation", 0)
+        
+        for block in doc.code_blocks:
+            docx_document.add_heading("Code:", level=2)
+            docx_document.add_paragraph(block.content, style='Normal')
+        
+        buffer = BytesIO()
+        docx_document.save(buffer)
+        buffer.seek(0)
+        return buffer.read()

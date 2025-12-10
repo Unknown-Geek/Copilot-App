@@ -55,25 +55,6 @@ class TestClass:
         with self.assertRaises(ValueError):
             self.generator.generate(None, "python")
 
-    def test_save_documentation(self):
-        doc_generator = DocumentationGenerator()
-        doc = Documentation(
-            title="Test Doc",
-            description="Test description",
-            code_blocks=[],
-            language="python",
-            generated_at=datetime.now().isoformat()
-        )
-        
-        with tempfile.TemporaryDirectory() as temp_dir:
-            output_path = os.path.join(temp_dir, 'doc.txt')
-            doc_generator.save_documentation(doc, output_path)
-            
-            assert os.path.exists(output_path)
-            with open(output_path, 'r') as file:
-                content = file.read()
-                assert "Test Doc" in content
-
     def test_export_to_markdown(self):
         doc_generator = DocumentationGenerator()
         doc = Documentation(
@@ -81,12 +62,32 @@ class TestClass:
             description="Test description",
             code_blocks=[],
             language="python",
-            generated_at=datetime.now().isoformat()
+            metrics={}
         )
-        
         with tempfile.TemporaryDirectory() as temp_dir:
             output_path = os.path.join(temp_dir, 'doc.md')
-            doc_generator.export_to_markdown(doc, output_path)
+            doc_generator.export_documentation(doc, format='markdown', output_path=output_path)
+            assert os.path.exists(output_path)
+            with open(output_path, 'r') as file:
+                content = file.read()
+                assert "Test Doc" in content
+
+    def test_save_documentation(self):
+        doc_generator = DocumentationGenerator()
+        doc = Documentation(
+            title="Test Doc",
+            description="Test description",
+            code_blocks=[],
+            language="python",
+            metrics={}
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, 'doc.txt')
+            doc_generator.export_documentation(doc, format='markdown', output_path=output_path)
+            assert os.path.exists(output_path)
+            with open(output_path, 'r') as file:
+                content = file.read()
+                assert "Test Doc" in content
 
     def test_advanced_metrics(self):
         """Test advanced metrics calculation"""

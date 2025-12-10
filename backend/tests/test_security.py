@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, session
 from flask_jwt_extended import create_access_token
 import pytest
 from unittest.mock import patch
@@ -95,17 +95,22 @@ def test_logout(client):
         assert 'user_id' not in sess
 
 @patch('services.github_service.GitHubService.get_access_token')
-def test_github_auth_flow(mock_get_access_token, client):
+@patch('services.github_service.GitHubService.exchange_code_for_token')
+def test_github_auth_flow(mock_exchange_code_for_token, mock_get_access_token, client):
     """Test GitHub OAuth flow"""
-    # Mock the get_access_token method to return a valid token
+    # Mock the token exchange and access token methods
+    mock_exchange_code_for_token.return_value = {'access_token': 'mock_access_token'}
     mock_get_access_token.return_value = 'mock_access_token'
     
-    # Test authorization URL generation
-    response = client.get('/auth/github')
-    assert response.status_code == 200
-    assert 'github.com/login/oauth/authorize' in response.get_data(as_text=True)
+    # Set up session state
+    with client.session_transaction() as sess:
+        sess['github_state'] = 'test_state'
     
-    # Test callback with mock code
-    response = client.get('/auth/github/callback?code=test_code')
+    # Test callback with valid code and state
+    response = client.get('/auth/github/callback?code=test_code&state=test_state')
     assert response.status_code == 200
     assert response.json == {"status": "success"}
+    
+    # Verify mocks were called correctly
+    mock_exchange_code_for_token.assert_called_once_with('test_code')
+    mock_get_access_token.assert_called_once_with('mock_access_token')

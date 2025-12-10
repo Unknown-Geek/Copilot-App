@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, Mock
 import tempfile
 import json
+import os
 from services.documentation_generator import DocumentationGenerator
 
 class TestDocumentationFeatures(unittest.TestCase):
@@ -84,7 +85,7 @@ class TestDocumentationFeatures(unittest.TestCase):
         # 4. Test Export Options
         # File export
         with tempfile.NamedTemporaryFile(suffix='.md', mode='w+', delete=False) as tf:
-            self.generator.export_documentation(python_doc, output_file=tf.name)
+            self.generator.export_documentation(python_doc, output_path=tf.name)
             with open(tf.name, 'r') as f:
                 content = f.read()
             self.assertIn('# Python Documentation', content)
@@ -109,6 +110,30 @@ class TestDocumentationFeatures(unittest.TestCase):
             self.assertIn('# Python Documentation', github_doc)
             self.assertIn('```python', github_doc)
 
+    def test_all_export_formats(self):
+        """Test all supported export formats"""
+        doc = self.generator.generate(self.test_code['python'], 'python')
+        formats = {
+            'markdown': '.md',
+            'html': '.html',
+            'json': '.json',
+            'pdf': '.pdf',
+            'docx': '.docx'
+        }
+        
+        for format_name, extension in formats.items():
+            output_file = f'test_output{extension}'
+            try:
+                content = self.generator.export_documentation(doc, format=format_name, output_path=output_file)
+                self.assertTrue(os.path.exists(output_file))
+                if format_name in ['pdf', 'docx']:
+                    self.assertIsInstance(content, bytes)
+                else:
+                    self.assertIsInstance(content, str)
+            finally:
+                if os.path.exists(output_file):
+                    os.remove(output_file)
+
     def test_error_handling(self):
         """Test error handling across features"""
         # Test invalid language
@@ -127,6 +152,34 @@ class TestDocumentationFeatures(unittest.TestCase):
         # Test empty code
         with self.assertRaises(ValueError):
             self.generator.generate("", "python")
+
+    def test_pdf_export(self):
+        """Test PDF export functionality"""
+        doc = self.generator.generate(self.test_code['python'], 'python')
+        output_file = 'test_output.pdf'
+        
+        try:
+            content = self.generator.export_documentation(doc, format='pdf', output_path=output_file)
+            self.assertIsInstance(content, bytes)
+            self.assertTrue(os.path.exists(output_file))
+            self.assertGreater(os.path.getsize(output_file), 0)
+        finally:
+            if os.path.exists(output_file):
+                os.remove(output_file)
+
+    def test_docx_export(self):
+        """Test DOCX export functionality"""
+        doc = self.generator.generate(self.test_code['python'], 'python')
+        output_file = 'test_output.docx'
+        
+        try:
+            content = self.generator.export_documentation(doc, format='docx', output_path=output_file)
+            self.assertTrue(os.path.exists(output_file))
+            self.assertIsInstance(content, bytes)  # DOCX should be bytes
+        finally:
+            # Cleanup
+            if os.path.exists(output_file):
+                os.remove(output_file)
 
 if __name__ == '__main__':
     unittest.main()

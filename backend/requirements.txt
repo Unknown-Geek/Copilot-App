@@ -13,4 +13,6 @@ radon==6.0.1
 pygments==2.16.1
 azure-ai-translation-text
 flask-limiter
-secrets==1.0.2  # Add if not using Python 3.6+
+python-docx==0.8.11
+reportlab==4.0.4
+exporters==0.7.0

@@ -10,6 +10,8 @@ import logging
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import secrets
+from urllib.parse import urlencode  # Add this import
+from flask import jsonify  # Add this import
 
 @dataclass
 class CachedResponse:
@@ -283,14 +285,18 @@ class GitHubService:
                 'status': 'error'
             }
 
-    def get_authorization_url(self) -> str:
+    def get_authorization_url(self, state=None):
+        client_id = Config.GITHUB_CLIENT_ID
+        redirect_uri = self.default_redirect
         params = {
-            'client_id': Config.GITHUB_CLIENT_ID,
-            'redirect_uri': self.default_redirect,
+            'client_id': client_id,
+            'redirect_uri': redirect_uri,
             'scope': 'repo user',
-            'state': secrets.token_hex(16)  # Security: state parameter is properly implemented
         }
-        return f"{self.oauth_url}/authorize?{'&'.join(f'{k}={v}' for k,v in params.items())}"
+        if state:
+            params['state'] = state
+        auth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
+        return jsonify({'auth_url': auth_url})
 
     def get_access_token(self, code: str) -> str:
         data = {
@@ -305,3 +311,18 @@ class GitHubService:
         if response.status_code != 200:
             raise Exception("Failed to get access token")
         return response.json()['access_token']
+
+    def validate_token(self):
+        if not self.token:
+            raise ValueError("GitHub token is not set")
+
+    def get_repository_info(self, owner, repo):
+        if not self.token:
+            return {'error': 'GitHub token not configured'}
+        headers = {'Authorization': f'token {self.token}'}
+        repo_url = f"https://api.github.com/repos/{owner}/{repo}"
+        response = requests.get(repo_url, headers=headers)
+        if response.status_code == 401:
+            return {'error': 'Invalid GitHub credentials'}
+        response.raise_for_status()
+        return response.json()

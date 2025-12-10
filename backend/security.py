@@ -76,17 +76,30 @@ def logout():
 @security.route('/auth/github', methods=['GET'])
 def github_login():
     """Initiate GitHub OAuth flow"""
-    return github_service.get_authorization_url()
+    state = secrets.token_hex(16)
+    session['github_state'] = state
+    return github_service.get_authorization_url(state=state)
 
 @security.route('/auth/github/callback')
 def github_callback():
     """Handle GitHub OAuth callback"""
     code = request.args.get('code')
+    state = request.args.get('state')
+    stored_state = session.get('github_state')
+    
     if not code:
         return jsonify({"error": "No code provided"}), 400
+    if not state or state != stored_state:
+        return jsonify({"error": "Invalid state parameter"}), 400
     
     try:
-        token = github_service.get_access_token(code)
+        # First exchange code for token
+        token_response = github_service.exchange_code_for_token(code)
+        if 'error' in token_response:
+            return jsonify(token_response), 401
+            
+        # Then get access token from response
+        token = github_service.get_access_token(token_response['access_token'])
         session['github_token'] = token
         return jsonify({"status": "success"}), 200
     except Exception as e:
