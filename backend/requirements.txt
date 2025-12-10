@@ -1,6 +1,5 @@
 werkzeug==2.0.3
 flask==2.0.3
-azure-ai-textanalytics
 python-dotenv==0.19.0
 flask-cors==3.0.10
 markdown>=3.0.0
@@ -11,8 +10,11 @@ flask-limiter==3.5.0
 flask-jwt-extended==4.5.2
 radon==6.0.1
 pygments==2.16.1
-azure-ai-translation-text
-flask-limiter
 python-docx==0.8.11
 reportlab==4.0.4
-exporters==0.7.0
+
+# Free alternatives to Azure (no API keys required)
+textblob==0.17.1
+nltk==3.8.1
+deep-translator==1.11.4
+langdetect==1.0.9

@@ -1,3 +1,8 @@
+"""
+Configuration for the DocGen backend.
+Simplified - Azure credentials are no longer required!
+"""
+
 import os
 from dotenv import load_dotenv
 from typing import Dict, Any
@@ -5,14 +10,14 @@ from typing import Dict, Any
 load_dotenv()
 
 class Config:
-    AZURE_KEY = os.getenv('AZURE_KEY', '')  # Changed from AZURE_COGNITIVE_SERVICES_KEY
-    AZURE_ENDPOINT = os.getenv('AZURE_ENDPOINT', '')  # Changed from AZURE_COGNITIVE_SERVICES_ENDPOINT
+    # GitHub settings (optional - for GitHub integration features)
     GITHUB_TOKEN = os.getenv('GITHUB_TOKEN', '')
     GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '')
     GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET', '')
     
     # Security settings
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', os.urandom(32))
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', os.urandom(32).hex())
+    SECRET_KEY = os.getenv('SECRET_KEY', os.urandom(32).hex())
     RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '60'))
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5MB
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
@@ -22,8 +27,6 @@ class Config:
         """Return configuration for testing environment"""
         return {
             'TESTING': True,
-            'AZURE_KEY': 'test_key',
-            'AZURE_ENDPOINT': 'https://test.azure.com',
             'GITHUB_TOKEN': 'test_token',
             'GITHUB_CLIENT_ID': 'test_client_id',
             'GITHUB_CLIENT_SECRET': 'test_client_secret',
@@ -32,7 +35,10 @@ class Config:
 
     @classmethod
     def validate(cls) -> Dict[str, Any]:
-        """Validate configuration with test environment support"""
+        """
+        Validate configuration - now always succeeds since Azure is not required.
+        GitHub credentials are optional.
+        """
         from flask import current_app
         
         # Always use test config if FLASK_ENV is testing
@@ -42,18 +48,13 @@ class Config:
                 current_app.config.update(test_config)
             return {'status': 'valid', 'config': test_config}
 
-        required = {
-            'AZURE_KEY': cls.AZURE_KEY,
-            'AZURE_ENDPOINT': cls.AZURE_ENDPOINT,
-            'GITHUB_CLIENT_ID': cls.GITHUB_CLIENT_ID,
-            'GITHUB_CLIENT_SECRET': cls.GITHUB_CLIENT_SECRET,
+        # Configuration is always valid now - no Azure required!
+        config_status = {
+            'github_configured': bool(cls.GITHUB_CLIENT_ID and cls.GITHUB_CLIENT_SECRET),
+            'rate_limit': cls.RATE_LIMIT_PER_MINUTE
         }
         
-        missing = [k for k, v in required.items() if not v]
-        if missing:
-            raise ValueError(f"Missing required configuration: {', '.join(missing)}")
-
         return {
             'status': 'valid',
-            'config': {k: bool(v) for k, v in required.items()}
+            'config': config_status
         }

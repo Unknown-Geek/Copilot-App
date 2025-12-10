@@ -19,7 +19,7 @@ rate_limiter = RateLimiter(requests_per_minute=60)
 @api.route('/analyze', methods=['POST'])
 @rate_limit(rate_limiter)
 def analyze():
-    """Analyze code using Azure Text Analytics and return sentiment analysis."""
+    """Analyze code using free sentiment analysis (TextBlob/NLTK VADER)."""
     if not request.is_json:
         return jsonify({'error': 'Content-Type must be application/json'}), 400
         
