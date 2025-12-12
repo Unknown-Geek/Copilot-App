@@ -231,7 +231,6 @@ def add_custom_terminology():
 
 @api.route('/github/<owner>/<repo>', methods=['GET'])
 @rate_limit(rate_limiter)
-@require_auth
 def github_info(owner, repo):
     try:
         if not github.token:
@@ -245,7 +244,6 @@ def github_info(owner, repo):
 
 @api.route('/github/<owner>/<repo>/analyze', methods=['GET'])
 @rate_limit(rate_limiter)
-@require_auth
 def analyze_repository(owner: str, repo: str):
     """Get detailed repository analysis"""
     try:
