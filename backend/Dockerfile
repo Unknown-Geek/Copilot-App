@@ -29,9 +29,9 @@ RUN mkdir -p /app/exports
 # Expose port
 EXPOSE 5001
 
-# Health check
+# Health check (uses PORT env var or defaults to 5001)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5001/api/config')" || exit 1
+    CMD python -c "import requests, os; requests.get(f'http://localhost:{os.getenv(\"PORT\", \"5001\")}/api/config')" || exit 1
 
-# Run with gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--timeout", "120", "server:app"]
+# Run with gunicorn (bind to PORT env var or default to 5001)
+CMD gunicorn --bind 0.0.0.0:${PORT:-5001} --workers 2 --timeout 120 server:app
