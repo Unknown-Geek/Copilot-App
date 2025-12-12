@@ -31,12 +31,20 @@ export function getConfig(): ExtensionConfig {
  */
 async function isLocalhostRunning(): Promise<boolean> {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+
     const response = await fetch("http://localhost:5001/api/analyze", {
-      method: "HEAD",
-      signal: AbortSignal.timeout(1000), // 1 second timeout
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "test", language: "python" }),
+      signal: controller.signal,
     });
-    return response.ok || response.status === 405; // 405 means endpoint exists but HEAD not allowed
-  } catch {
+
+    clearTimeout(timeoutId);
+    return response.ok || response.status === 400; // 400 is also OK, means server is up
+  } catch (error) {
+    // Any error means localhost is not available
     return false;
   }
 }
@@ -46,12 +54,12 @@ async function isLocalhostRunning(): Promise<boolean> {
  */
 async function getBackendUrl(): Promise<string> {
   const config = getConfig();
-  
+
   // Check if localhost is running
   if (await isLocalhostRunning()) {
     return "http://localhost:5001";
   }
-  
+
   // Fallback to configured backend URL (Render)
   return config.backendUrl;
 }
@@ -82,7 +90,9 @@ async function apiRequest<T>(
     const response = await fetch(url, options);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
       throw new Error(
         errorData.error || `HTTP ${response.status}: ${response.statusText}`
       );
@@ -92,7 +102,7 @@ async function apiRequest<T>(
   } catch (error) {
     if (error instanceof TypeError && error.message.includes("fetch")) {
       throw new Error(
-        `Cannot connect to backend at ${config.backendUrl}. Is the server running?`
+        `Cannot connect to backend at ${baseUrl}. Is the server running?`
       );
     }
     throw error;

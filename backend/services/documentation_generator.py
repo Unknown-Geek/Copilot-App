@@ -146,20 +146,20 @@ Code:
 {code}
 ```
 
-Generate documentation with the following sections. Keep each section concise and avoid very long strings:
+Generate documentation with the following sections. Each section MUST be concise (no more than 5 lines per section, no deeply nested or very long lists, no more than 10 items per list, no deeply nested objects). If a section would be too long, summarize or truncate it.
 1. **Title**: A clear, concise title for this code module
 2. **Overview**: A brief summary (2-3 sentences) of what this code does
 3. **Purpose**: Detailed explanation of the purpose and use case
-4. **Components**: List and explain each class, function, method, or configuration
-5. **Parameters/Attributes**: Document all parameters, attributes, environment variables
+4. **Components**: List and explain each class, function, method, or configuration (max 10 items)
+5. **Parameters/Attributes**: Document all parameters, attributes, environment variables (max 10 items)
 6. **Return Values**: Explain what is returned (if applicable)
-7. **Usage Examples**: Provide practical usage examples
-8. **Best Practices**: Recommendations for using this code
-9. **Notes**: Any important caveats, warnings, or additional information
+7. **Usage Examples**: Provide practical usage examples (max 3 examples)
+8. **Best Practices**: Recommendations for using this code (max 5 items)
+9. **Notes**: Any important caveats, warnings, or additional information (max 5 items)
 
 IMPORTANT: Format the response as a valid JSON object with these keys: title, overview, purpose, components, parameters, returns, examples, best_practices, notes.
 Do NOT wrap the JSON in markdown code blocks. Return only the raw JSON.
-Keep string values concise - use \\n for line breaks within strings instead of actual newlines.
+Keep string values concise - use \\n for line breaks within strings instead of actual newlines. Do NOT use actual newlines inside JSON string values.
 Make it professional, clear, and detailed like official library documentation."""
 
                 # Configure generation parameters
@@ -177,23 +177,35 @@ Make it professional, clear, and detailed like official library documentation.""
                 
                 # Try to parse JSON response
                 response_text = response.text.strip()
-                
+
                 # Remove markdown code blocks if present
                 if response_text.startswith('```json'):
-                    response_text = response_text[7:]  # Remove ```json
+                    response_text = response_text[7:]
                 if response_text.startswith('```'):
-                    response_text = response_text[3:]  # Remove ```
+                    response_text = response_text[3:]
                 if response_text.endswith('```'):
-                    response_text = response_text[:-3]  # Remove closing ```
+                    response_text = response_text[:-3]
                 response_text = response_text.strip()
-                
+
+                # Post-process: Remove newlines inside JSON string values (but keep newlines between JSON fields)
+                import re
+                def fix_json_newlines(text):
+                    # Replace newlines inside string values with a space
+                    # This regex finds quoted strings and replaces internal newlines with a space
+                    def repl(match):
+                        s = match.group(0)
+                        return s.replace('\n', ' ').replace('\r', ' ')
+                    return re.sub(r'"(.*?)(?<!\\)"', repl, text, flags=re.DOTALL)
+
+                response_text_fixed = fix_json_newlines(response_text)
+
                 try:
-                    result = json.loads(response_text)
+                    result = json.loads(response_text_fixed)
                     self.logger.info(f"Successfully parsed AI-generated documentation. Keys: {list(result.keys())}")
                     return result
                 except json.JSONDecodeError as e:
                     self.logger.warning(f"Failed to parse AI response as JSON: {e}")
-                    self.logger.debug(f"Response text (first 200 chars): {response_text[:200]}")
+                    self.logger.debug(f"Response text (first 200 chars): {response_text_fixed[:200]}")
                     # If not JSON, return as plain text documentation
                     return {
                         'title': 'Generated Documentation',

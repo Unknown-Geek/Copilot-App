@@ -41,35 +41,39 @@ var fs = __toESM(require("fs"));
 // src/api.ts
 var vscode = __toESM(require("vscode"));
 function getConfig() {
-  const config2 = vscode.workspace.getConfiguration("docgen");
+  const config = vscode.workspace.getConfiguration("docgen");
   return {
-    backendUrl: config2.get(
+    backendUrl: config.get(
       "backendUrl",
       "https://codedoc-vscode-extension.onrender.com"
     ),
-    defaultTargetLanguage: config2.get("defaultTargetLanguage", "es"),
-    defaultExportFormat: config2.get("defaultExportFormat", "markdown"),
-    showStatusBar: config2.get("showStatusBar", true)
+    defaultTargetLanguage: config.get("defaultTargetLanguage", "es"),
+    defaultExportFormat: config.get("defaultExportFormat", "markdown"),
+    showStatusBar: config.get("showStatusBar", true)
   };
 }
 async function isLocalhostRunning() {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1e3);
     const response = await fetch("http://localhost:5001/api/analyze", {
-      method: "HEAD",
-      signal: AbortSignal.timeout(1e3)
-      // 1 second timeout
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "test", language: "python" }),
+      signal: controller.signal
     });
-    return response.ok || response.status === 405;
-  } catch {
+    clearTimeout(timeoutId);
+    return response.ok || response.status === 400;
+  } catch (error) {
     return false;
   }
 }
 async function getBackendUrl() {
-  const config2 = getConfig();
+  const config = getConfig();
   if (await isLocalhostRunning()) {
     return "http://localhost:5001";
   }
-  return config2.backendUrl;
+  return config.backendUrl;
 }
 async function apiRequest(endpoint, method = "GET", body) {
   const baseUrl = await getBackendUrl();
@@ -95,7 +99,7 @@ async function apiRequest(endpoint, method = "GET", body) {
   } catch (error) {
     if (error instanceof TypeError && error.message.includes("fetch")) {
       throw new Error(
-        `Cannot connect to backend at ${config.backendUrl}. Is the server running?`
+        `Cannot connect to backend at ${baseUrl}. Is the server running?`
       );
     }
     throw error;
@@ -423,8 +427,8 @@ var outputChannel;
 function activate(context) {
   outputChannel = vscode3.window.createOutputChannel("DocGen");
   log("DocGen extension activated");
-  const config2 = getConfig();
-  if (config2.showStatusBar) {
+  const config = getConfig();
+  if (config.showStatusBar) {
     statusBarItem = vscode3.window.createStatusBarItem(
       vscode3.StatusBarAlignment.Right,
       100
