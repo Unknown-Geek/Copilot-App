@@ -132,9 +132,9 @@ cp .env.docker.example .env
 
 ```bash
 # Using Docker Compose
-docker-compose up -d
+docker compose up -d
 
-# Or using Make (if available)
+# Or using Make
 make up
 ```
 
@@ -149,19 +149,19 @@ Health Check: http://localhost:5001/api/config
 
 ```bash
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Stop services
-docker-compose down
+docker compose down
 
 # Rebuild after code changes
-docker-compose build
+docker compose build
 
 # Development mode (with hot reload)
-docker-compose -f docker-compose.dev.yml up
+docker compose -f docker-compose.dev.yml up
 
 # Run tests in container
-docker-compose exec backend python -m pytest tests/ -v
+docker compose exec backend python -m pytest tests/ -v
 ```
 
 ### Manual Backend Setup
@@ -511,35 +511,37 @@ python server.py
 
 ```bash
 # Start with hot reload
-docker-compose -f docker-compose.dev.yml up
+docker compose -f docker-compose.dev.yml up
 
 # Access running container
-docker-compose exec backend bash
+docker compose exec backend bash
 
 # View logs
-docker-compose logs -f backend
+docker compose logs -f backend
 ```
 
-**Using Makefile:**
+**Using Makefile (Linux/Mac/WSL):**
 
 ```bash
-# Build images
-make build
+make help          # Show all available commands
+make build         # Build images
+make up            # Start production
+make dev           # Start development mode
+make test          # Run tests
+make logs          # View logs
+make clean         # Clean everything
+```
 
-# Start production
-make prod
+**Using PowerShell Script (Windows):**
 
-# Start development
-make dev
-
-# Run tests
-make test
-
-# View logs
-make logs
-
-# Clean everything
-make clean
+```powershell
+.\make.ps1 help          # Show all available commands
+.\make.ps1 build         # Build images
+.\make.ps1 up            # Start production
+.\make.ps1 dev           # Start development mode
+.\make.ps1 test          # Run tests
+.\make.ps1 logs          # View logs
+.\make.ps1 clean         # Clean everything
 ```
 
 ### Extension Development
@@ -579,13 +581,13 @@ npm run package
 1. Build production image:
 
 ```bash
-docker-compose build
+docker compose build
 ```
 
 2. Run in production:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 3. Configure reverse proxy (nginx/traefik):

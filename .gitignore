@@ -58,6 +58,7 @@ venv/
 
 # Docker
 docker-compose.override.yml
+compose.override.yml
 
 # Exports and logs
 exports/*.md
