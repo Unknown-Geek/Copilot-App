@@ -43,7 +43,10 @@ var vscode = __toESM(require("vscode"));
 function getConfig() {
   const config = vscode.workspace.getConfiguration("docgen");
   return {
-    backendUrl: config.get("backendUrl", "https://codedoc-vscode-extension.onrender.com"),
+    backendUrl: config.get(
+      "backendUrl",
+      "https://codedoc-vscode-extension.onrender.com"
+    ),
     defaultTargetLanguage: config.get("defaultTargetLanguage", "es"),
     defaultExportFormat: config.get("defaultExportFormat", "markdown"),
     showStatusBar: config.get("showStatusBar", true)

@@ -1,7 +1,7 @@
 {
     "name": "docgen-multilingual",
     "displayName": "Code Multilingual Documentation Generator",
-    "description": "Generate multilingual documentation from code using Azure Cognitive Services",
+    "description": "Generate multilingual documentation from code using free open-source AI services",
     "version": "1.0.0",
     "publisher": "docgen",
     "engines": {
@@ -15,8 +15,10 @@
         "documentation",
         "multilingual",
         "translation",
-        "azure",
-        "code analysis"
+        "github",
+        "code analysis",
+        "ai",
+        "free"
     ],
     "activationEvents": [
         "onStartupFinished"

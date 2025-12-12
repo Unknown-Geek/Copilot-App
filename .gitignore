@@ -25,10 +25,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.log
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea
 *.suo
 *.ntvs*
@@ -36,13 +39,30 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
+# Python
 *.pyc
 __pycache__/
 .pytest_cache/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment
 .env
 .env.*
 !.env.example
+!.env.docker.example
 backend/.env
-.env
 backend/venv/
 venv/
+
+# Docker
+docker-compose.override.yml
+
+# Exports and logs
+exports/*.md
+exports/*.html
+exports/*.pdf
+!exports/.gitkeep
+logs/*.log
+!logs/.gitkeep
