@@ -110,28 +110,40 @@ class GitHubService:
         return files_to_document
 
     def get_repository_info(self, owner: str, repo: str) -> Dict[str, Any]:
-        """Get repository information with improved caching"""
+        """Get repository information with caching"""
+        if not self.token:
+            return {'error': 'GitHub token not configured'}
+            
         cache_key = f"{owner}/{repo}"
         
-        # Check cache first with stale-while-revalidate strategy
+        # Check cache first
         cached = self._cache.get(cache_key)
         current_time = time.time()
         
-        # Return cached response if still fresh
         if cached and current_time < cached.expires_at:
             return cached.data
+        
+        # Fetch from GitHub API
+        headers = {'Authorization': f'token {self.token}'}
+        repo_url = f"{self.base_url}/repos/{owner}/{repo}"
+        
+        try:
+            response = requests.get(repo_url, headers=headers, timeout=10)
+            if response.status_code == 401:
+                return {'error': 'Invalid GitHub credentials'}
+            response.raise_for_status()
             
-        # Start background refresh if stale but not expired
-        if cached and current_time < (cached.expires_at + 300):  # 5 min grace period
-            self._refresh_cache_async(owner, repo, cache_key)
-            return cached.data
-
-        return self._fetch_repository_info(owner, repo, cache_key)
-
-    def _refresh_cache_async(self, owner: str, repo: str, cache_key: str) -> None:
-        """Refresh cache asynchronously"""
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            executor.submit(self._fetch_repository_info, owner, repo, cache_key)
+            data = self._format_repository_data(response.json())
+            
+            # Cache the result
+            self._cache[cache_key] = CachedResponse(
+                data=data,
+                expires_at=time.time() + self.cache_ttl
+            )
+            
+            return data
+        except requests.exceptions.RequestException as e:
+            return {'error': f'Failed to fetch repository: {str(e)}'}
 
     def analyze_repository(self, owner: str, repo: str) -> Dict[str, Any]:
         """Advanced repository analysis"""
@@ -315,14 +327,3 @@ class GitHubService:
     def validate_token(self):
         if not self.token:
             raise ValueError("GitHub token is not set")
-
-    def get_repository_info(self, owner, repo):
-        if not self.token:
-            return {'error': 'GitHub token not configured'}
-        headers = {'Authorization': f'token {self.token}'}
-        repo_url = f"https://api.github.com/repos/{owner}/{repo}"
-        response = requests.get(repo_url, headers=headers)
-        if response.status_code == 401:
-            return {'error': 'Invalid GitHub credentials'}
-        response.raise_for_status()
-        return response.json()
