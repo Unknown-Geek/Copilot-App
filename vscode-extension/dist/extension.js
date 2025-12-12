@@ -43,7 +43,7 @@ var vscode = __toESM(require("vscode"));
 function getConfig() {
   const config = vscode.workspace.getConfiguration("docgen");
   return {
-    backendUrl: config.get("backendUrl", "http://localhost:5001"),
+    backendUrl: config.get("backendUrl", "https://codedoc-vscode-extension.onrender.com"),
     defaultTargetLanguage: config.get("defaultTargetLanguage", "es"),
     defaultExportFormat: config.get("defaultExportFormat", "markdown"),
     showStatusBar: config.get("showStatusBar", true)
@@ -65,25 +65,33 @@ async function apiRequest(endpoint, method = "GET", body) {
     const response = await fetch(url, options);
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(
+        errorData.error || `HTTP ${response.status}: ${response.statusText}`
+      );
     }
     return await response.json();
   } catch (error) {
     if (error instanceof TypeError && error.message.includes("fetch")) {
-      throw new Error(`Cannot connect to backend at ${config.backendUrl}. Is the server running?`);
+      throw new Error(
+        `Cannot connect to backend at ${config.backendUrl}. Is the server running?`
+      );
     }
     throw error;
   }
 }
 async function generateDocumentation(code, language, options) {
-  return apiRequest("/api/analyze/documentation/generate", "POST", {
-    code,
-    language,
-    title: options?.title,
-    description: options?.description,
-    template: options?.template || "default",
-    format: options?.format || "markdown"
-  });
+  return apiRequest(
+    "/api/analyze/documentation/generate",
+    "POST",
+    {
+      code,
+      language,
+      title: options?.title,
+      description: options?.description,
+      template: options?.template || "default",
+      format: options?.format || "markdown"
+    }
+  );
 }
 async function analyzeCode(code, language) {
   return apiRequest("/api/analyze", "POST", {
@@ -96,6 +104,12 @@ async function translateText(text, targetLanguage) {
     text,
     target_language: targetLanguage
   });
+}
+async function analyzeGitHubRepo(owner, repo) {
+  return apiRequest(`/github/${owner}/${repo}/analyze`, "GET");
+}
+async function getGitHubAuthUrl() {
+  return apiRequest("/auth/github", "GET");
 }
 
 // src/webview.ts
@@ -389,7 +403,10 @@ function activate(context) {
   log("DocGen extension activated");
   const config = getConfig();
   if (config.showStatusBar) {
-    statusBarItem = vscode3.window.createStatusBarItem(vscode3.StatusBarAlignment.Right, 100);
+    statusBarItem = vscode3.window.createStatusBarItem(
+      vscode3.StatusBarAlignment.Right,
+      100
+    );
     statusBarItem.text = "$(book) DocGen";
     statusBarItem.tooltip = "Generate Documentation";
     statusBarItem.command = "docgen.generateDocs";
@@ -397,17 +414,39 @@ function activate(context) {
     context.subscriptions.push(statusBarItem);
   }
   context.subscriptions.push(
-    vscode3.commands.registerCommand("docgen.generateDocs", () => generateDocsCommand(context)),
-    vscode3.commands.registerCommand("docgen.translateDocs", () => translateDocsCommand(context)),
-    vscode3.commands.registerCommand("docgen.exportDocs", () => exportDocsCommand(context)),
-    vscode3.commands.registerCommand("docgen.analyzeCode", () => analyzeCodeCommand(context))
+    vscode3.commands.registerCommand(
+      "docgen.generateDocs",
+      () => generateDocsCommand(context)
+    ),
+    vscode3.commands.registerCommand(
+      "docgen.translateDocs",
+      () => translateDocsCommand(context)
+    ),
+    vscode3.commands.registerCommand(
+      "docgen.exportDocs",
+      () => exportDocsCommand(context)
+    ),
+    vscode3.commands.registerCommand(
+      "docgen.analyzeCode",
+      () => analyzeCodeCommand(context)
+    ),
+    vscode3.commands.registerCommand(
+      "docgen.analyzeGitHubRepo",
+      () => analyzeGitHubRepoCommand(context)
+    ),
+    vscode3.commands.registerCommand(
+      "docgen.loginGitHub",
+      () => loginGitHubCommand(context)
+    )
   );
   log("All commands registered");
 }
 async function generateDocsCommand(context) {
   const editor = vscode3.window.activeTextEditor;
   if (!editor) {
-    vscode3.window.showWarningMessage("No active editor. Open a file to generate documentation.");
+    vscode3.window.showWarningMessage(
+      "No active editor. Open a file to generate documentation."
+    );
     return;
   }
   const document = editor.document;
@@ -432,7 +471,9 @@ async function generateDocsCommand(context) {
     setStatus("$(check) Generated");
     const content = typeof response.documentation === "string" ? response.documentation : response.documentation;
     showDocumentationPreview(context, content, `Docs: ${fileName}`);
-    vscode3.window.showInformationMessage("Documentation generated successfully!");
+    vscode3.window.showInformationMessage(
+      "Documentation generated successfully!"
+    );
     setTimeout(() => setStatus("$(book) DocGen"), 3e3);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate documentation";
@@ -447,7 +488,9 @@ async function translateDocsCommand(context) {
   if (!currentDoc) {
     const editor = vscode3.window.activeTextEditor;
     if (!editor) {
-      vscode3.window.showWarningMessage("No documentation to translate. Generate documentation first or open a file.");
+      vscode3.window.showWarningMessage(
+        "No documentation to translate. Generate documentation first or open a file."
+      );
       return;
     }
   }
@@ -474,7 +517,11 @@ async function translateDocsCommand(context) {
     log(`Translation completed (confidence: ${response.confidence})`);
     setStatus("$(check) Translated");
     if (response.translated_text) {
-      showDocumentationPreview(context, response.translated_text, `Translated (${selected.label})`);
+      showDocumentationPreview(
+        context,
+        response.translated_text,
+        `Translated (${selected.label})`
+      );
     }
     vscode3.window.showInformationMessage(
       `Documentation translated to ${selected.label}` + (response.detected_language ? ` (from ${response.detected_language})` : "")
@@ -491,7 +538,9 @@ async function translateDocsCommand(context) {
 async function exportDocsCommand(context) {
   const currentDoc = getCurrentDocumentation();
   if (!currentDoc) {
-    vscode3.window.showWarningMessage("No documentation to export. Generate documentation first.");
+    vscode3.window.showWarningMessage(
+      "No documentation to export. Generate documentation first."
+    );
     return;
   }
   const formatItems = EXPORT_FORMATS.map((f) => ({
@@ -529,11 +578,15 @@ async function exportDocsCommand(context) {
     if (selected.id === "html") {
       content = convertToHtml(currentDoc);
     } else if (selected.id === "json") {
-      content = JSON.stringify({
-        documentation: currentDoc,
-        exported_at: (/* @__PURE__ */ new Date()).toISOString(),
-        format: "json"
-      }, null, 2);
+      content = JSON.stringify(
+        {
+          documentation: currentDoc,
+          exported_at: (/* @__PURE__ */ new Date()).toISOString(),
+          format: "json"
+        },
+        null,
+        2
+      );
     }
     fs.writeFileSync(saveUri.fsPath, content, "utf8");
     log(`Exported to ${saveUri.fsPath}`);
@@ -557,7 +610,9 @@ async function exportDocsCommand(context) {
 async function analyzeCodeCommand(context) {
   const editor = vscode3.window.activeTextEditor;
   if (!editor) {
-    vscode3.window.showWarningMessage("No active editor. Open a file to analyze.");
+    vscode3.window.showWarningMessage(
+      "No active editor. Open a file to analyze."
+    );
     return;
   }
   const document = editor.document;
@@ -605,11 +660,17 @@ function formatAnalysisResult(response, fileName) {
       md += `### Confidence Scores
 
 `;
-      md += `- Positive: ${(response.confidence_scores.positive * 100).toFixed(1)}%
+      md += `- Positive: ${(response.confidence_scores.positive * 100).toFixed(
+        1
+      )}%
 `;
-      md += `- Neutral: ${(response.confidence_scores.neutral * 100).toFixed(1)}%
+      md += `- Neutral: ${(response.confidence_scores.neutral * 100).toFixed(
+        1
+      )}%
 `;
-      md += `- Negative: ${(response.confidence_scores.negative * 100).toFixed(1)}%
+      md += `- Negative: ${(response.confidence_scores.negative * 100).toFixed(
+        1
+      )}%
 
 `;
     }
@@ -623,7 +684,13 @@ function formatAnalysisResult(response, fileName) {
 `;
   }
   for (const [key, value] of Object.entries(response)) {
-    if (!["status", "sentiment", "confidence_scores", "language", "error"].includes(key)) {
+    if (![
+      "status",
+      "sentiment",
+      "confidence_scores",
+      "language",
+      "error"
+    ].includes(key)) {
       md += `## ${key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
 
 `;
@@ -635,7 +702,10 @@ function formatAnalysisResult(response, fileName) {
   return md;
 }
 function convertToHtml(markdown) {
-  const bodyContent = markdown.replace(/^### (.*$)/gim, "<h3>$1</h3>").replace(/^## (.*$)/gim, "<h2>$1</h2>").replace(/^# (.*$)/gim, "<h1>$1</h1>").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\*(.*?)\*/g, "<em>$1</em>").replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>').replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\n/g, "<br>\n");
+  const bodyContent = markdown.replace(/^### (.*$)/gim, "<h3>$1</h3>").replace(/^## (.*$)/gim, "<h2>$1</h2>").replace(/^# (.*$)/gim, "<h1>$1</h1>").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\*(.*?)\*/g, "<em>$1</em>").replace(
+    /```(\w+)?\n([\s\S]*?)```/g,
+    '<pre><code class="language-$1">$2</code></pre>'
+  ).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\n/g, "<br>\n");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -664,6 +734,109 @@ function log(message, level = "info") {
   const timestamp = (/* @__PURE__ */ new Date()).toISOString();
   const prefix = level === "error" ? "[ERROR]" : level === "warn" ? "[WARN]" : "[INFO]";
   outputChannel.appendLine(`${timestamp} ${prefix} ${message}`);
+}
+async function analyzeGitHubRepoCommand(context) {
+  const repoUrl = await vscode3.window.showInputBox({
+    prompt: "Enter GitHub repository URL or owner/repo",
+    placeHolder: "e.g., microsoft/vscode or https://github.com/microsoft/vscode",
+    validateInput: (value) => {
+      if (!value) {
+        return "Repository URL is required";
+      }
+      const urlPattern = /^https?:\/\/github\.com\/[\w-]+\/[\w-]+/;
+      const shortPattern = /^[\w-]+\/[\w-]+$/;
+      if (!urlPattern.test(value) && !shortPattern.test(value)) {
+        return "Invalid format. Use owner/repo or full GitHub URL";
+      }
+      return null;
+    }
+  });
+  if (!repoUrl) {
+    return;
+  }
+  let owner, repo;
+  const shortMatch = repoUrl.match(/^([\w-]+)\/([\w-]+)$/);
+  const urlMatch = repoUrl.match(/github\.com\/([\w-]+)\/([\w-]+)/);
+  if (shortMatch) {
+    [, owner, repo] = shortMatch;
+  } else if (urlMatch) {
+    [, owner, repo] = urlMatch;
+  } else {
+    vscode3.window.showErrorMessage("Invalid repository format");
+    return;
+  }
+  log(`Analyzing GitHub repository: ${owner}/${repo}`);
+  setStatus("$(sync~spin) Analyzing Repository...");
+  try {
+    const response = await analyzeGitHubRepo(owner, repo);
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    log("Repository analysis completed");
+    setStatus("$(check) Analysis Complete");
+    const analysis = response.info || response;
+    const markdown = `# Repository Analysis: ${owner}/${repo}
+
+## Overview
+- **Name:** ${analysis.name || "N/A"}
+- **Description:** ${analysis.description || "No description"}
+- **Language:** ${analysis.language || "Multiple"}
+- **Stars:** ${analysis.stars || 0}
+- **Forks:** ${analysis.forks || 0}
+- **Open Issues:** ${analysis.open_issues || 0}
+- **License:** ${analysis.license || "No license"}
+
+## Details
+- **Created:** ${analysis.created_at ? new Date(analysis.created_at).toLocaleDateString() : "N/A"}
+- **Last Updated:** ${analysis.updated_at ? new Date(analysis.updated_at).toLocaleDateString() : "N/A"}
+- **Default Branch:** ${analysis.default_branch || "main"}
+- **Homepage:** ${analysis.homepage || "N/A"}
+
+## Topics
+${analysis.topics && analysis.topics.length > 0 ? analysis.topics.map((t) => `- ${t}`).join("\n") : "No topics"}
+`;
+    showDocumentationPreview(context, markdown, `GitHub: ${owner}/${repo}`);
+    vscode3.window.showInformationMessage(
+      `Repository ${owner}/${repo} analyzed successfully!`
+    );
+    setTimeout(() => setStatus("$(book) DocGen"), 3e3);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to analyze repository";
+    log(`Error: ${message}`, "error");
+    setStatus("$(error) Error");
+    vscode3.window.showErrorMessage(`DocGen: ${message}`);
+    setTimeout(() => setStatus("$(book) DocGen"), 3e3);
+  }
+}
+async function loginGitHubCommand(context) {
+  log("Initiating GitHub login");
+  setStatus("$(sync~spin) Connecting to GitHub...");
+  try {
+    const response = await getGitHubAuthUrl();
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    if (response.auth_url) {
+      const choice = await vscode3.window.showInformationMessage(
+        "Authorize DocGen to access your GitHub account?",
+        "Open GitHub",
+        "Cancel"
+      );
+      if (choice === "Open GitHub") {
+        vscode3.env.openExternal(vscode3.Uri.parse(response.auth_url));
+        vscode3.window.showInformationMessage(
+          "Complete authorization in your browser"
+        );
+      }
+    }
+    setStatus("$(book) DocGen");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to initiate GitHub login";
+    log(`Error: ${message}`, "error");
+    setStatus("$(error) Error");
+    vscode3.window.showErrorMessage(`DocGen: ${message}`);
+    setTimeout(() => setStatus("$(book) DocGen"), 3e3);
+  }
 }
 function deactivate() {
   if (outputChannel) {

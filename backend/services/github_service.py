@@ -22,7 +22,7 @@ class GitHubService:
     def __init__(self, validate_on_init: bool = False, cache_ttl: int = 3600):
         self.base_url = "https://api.github.com"
         self.oauth_url = "https://github.com/login/oauth"
-        self.default_redirect = "http://127.0.0.1:3000/auth/callback"
+        self.default_redirect = "https://codedoc-vscode-extension.onrender.com/auth/callback"
         
         # Initialize without validation
         self.token = Config.GITHUB_TOKEN.strip() if Config.GITHUB_TOKEN else None

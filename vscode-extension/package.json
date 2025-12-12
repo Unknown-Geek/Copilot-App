@@ -43,6 +43,16 @@
                 "command": "docgen.analyzeCode",
                 "title": "DocGen: Analyze Code",
                 "icon": "$(search)"
+            },
+            {
+                "command": "docgen.analyzeGitHubRepo",
+                "title": "DocGen: Analyze GitHub Repository",
+                "icon": "$(github)"
+            },
+            {
+                "command": "docgen.loginGitHub",
+                "title": "DocGen: Login to GitHub",
+                "icon": "$(sign-in)"
             }
         ],
         "keybindings": [
@@ -72,7 +82,7 @@
             "properties": {
                 "docgen.backendUrl": {
                     "type": "string",
-                    "default": "http://localhost:5001",
+                    "default": "https://codedoc-vscode-extension.onrender.com",
                     "description": "URL of the DocGen backend server"
                 },
                 "docgen.defaultTargetLanguage": {
