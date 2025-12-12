@@ -123,26 +123,30 @@ class DocumentationGenerator:
         # Initialize Gemini model if available
         if self.use_ai:
             try:
-                self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+                self.gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite')
                 self.logger.info("Gemini AI initialized for enhanced documentation")
             except Exception as e:
                 self.logger.warning(f"Failed to initialize Gemini: {e}")
                 self.use_ai = False
 
     def _generate_ai_documentation(self, code: str, language: str) -> Dict[str, str]:
-        """Generate professional documentation using Gemini AI"""
+        """Generate professional documentation using Gemini AI with retry logic"""
         if not self.use_ai:
             return None
             
-        try:
-            prompt = f"""You are a technical documentation expert. Analyze the following {language} code and generate comprehensive, professional documentation.
+        max_retries = 2
+        retry_delay = 1
+        
+        for attempt in range(max_retries):
+            try:
+                prompt = f"""You are a technical documentation expert. Analyze the following {language} code and generate comprehensive, professional documentation.
 
 Code:
 ```{language}
 {code}
 ```
 
-Generate documentation with the following sections:
+Generate documentation with the following sections. Keep each section concise and avoid very long strings:
 1. **Title**: A clear, concise title for this code module
 2. **Overview**: A brief summary (2-3 sentences) of what this code does
 3. **Purpose**: Detailed explanation of the purpose and use case
@@ -153,26 +157,59 @@ Generate documentation with the following sections:
 8. **Best Practices**: Recommendations for using this code
 9. **Notes**: Any important caveats, warnings, or additional information
 
-Format the response as a JSON object with these keys: title, overview, purpose, components, parameters, returns, examples, best_practices, notes.
+IMPORTANT: Format the response as a valid JSON object with these keys: title, overview, purpose, components, parameters, returns, examples, best_practices, notes.
+Do NOT wrap the JSON in markdown code blocks. Return only the raw JSON.
+Keep string values concise - use \\n for line breaks within strings instead of actual newlines.
 Make it professional, clear, and detailed like official library documentation."""
 
-            response = self.gemini_model.generate_content(prompt)
-            
-            # Try to parse JSON response
-            try:
-                result = json.loads(response.text)
-                return result
-            except json.JSONDecodeError:
-                # If not JSON, return as plain text documentation
-                return {
-                    'title': 'Generated Documentation',
-                    'overview': response.text[:500],
-                    'full_content': response.text
+                # Configure generation parameters
+                generation_config = {
+                    'temperature': 0.7,
+                    'top_p': 0.95,
+                    'top_k': 40,
+                    'max_output_tokens': 2048,
                 }
                 
-        except Exception as e:
-            self.logger.error(f"AI documentation generation failed: {e}")
-            return None
+                response = self.gemini_model.generate_content(
+                    prompt,
+                    generation_config=generation_config
+                )
+                
+                # Try to parse JSON response
+                response_text = response.text.strip()
+                
+                # Remove markdown code blocks if present
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:]  # Remove ```json
+                if response_text.startswith('```'):
+                    response_text = response_text[3:]  # Remove ```
+                if response_text.endswith('```'):
+                    response_text = response_text[:-3]  # Remove closing ```
+                response_text = response_text.strip()
+                
+                try:
+                    result = json.loads(response_text)
+                    self.logger.info(f"Successfully parsed AI-generated documentation. Keys: {list(result.keys())}")
+                    return result
+                except json.JSONDecodeError as e:
+                    self.logger.warning(f"Failed to parse AI response as JSON: {e}")
+                    self.logger.debug(f"Response text (first 200 chars): {response_text[:200]}")
+                    # If not JSON, return as plain text documentation
+                    return {
+                        'title': 'Generated Documentation',
+                        'overview': response.text[:500],
+                        'full_content': response.text
+                    }
+                    
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    self.logger.warning(f"AI generation attempt {attempt + 1} failed: {e}. Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    self.logger.error(f"AI documentation generation failed after {max_retries} attempts: {e}")
+                    return None
 
     def _calculate_metrics(self, code_blocks: List[CodeBlock]) -> Dict[str, Any]:
         total_blocks = len(code_blocks)
@@ -349,24 +386,55 @@ Make it professional, clear, and detailed like official library documentation.""
             sections.append(ai_doc['overview'])
         
         if 'purpose' in ai_doc:
-            sections.append(f"\n\n**Purpose:**\n{ai_doc['purpose']}")
+            sections.append(f"\n\n## Purpose\n\n{ai_doc['purpose']}")
         
         if 'components' in ai_doc:
-            sections.append(f"\n\n**Components:**\n{ai_doc['components']}")
+            sections.append(f"\n\n## Components\n\n{self._format_list_or_text(ai_doc['components'])}")
         
         if 'parameters' in ai_doc:
-            sections.append(f"\n\n**Parameters:**\n{ai_doc['parameters']}")
+            sections.append(f"\n\n## Parameters\n\n{self._format_list_or_text(ai_doc['parameters'])}")
+        
+        if 'returns' in ai_doc:
+            sections.append(f"\n\n## Return Values\n\n{ai_doc['returns']}")
         
         if 'examples' in ai_doc:
-            sections.append(f"\n\n**Usage Examples:**\n{ai_doc['examples']}")
+            sections.append(f"\n\n## Usage Examples\n\n{self._format_list_or_text(ai_doc['examples'])}")
         
         if 'best_practices' in ai_doc:
-            sections.append(f"\n\n**Best Practices:**\n{ai_doc['best_practices']}")
+            sections.append(f"\n\n## Best Practices\n\n{self._format_list_or_text(ai_doc['best_practices'])}")
         
         if 'notes' in ai_doc:
-            sections.append(f"\n\n**Notes:**\n{ai_doc['notes']}")
+            sections.append(f"\n\n## Notes\n\n{self._format_list_or_text(ai_doc['notes'])}")
         
         return '\n'.join(sections)
+    
+    def _format_list_or_text(self, content) -> str:
+        """Format content that could be a list, dict, or plain text"""
+        if isinstance(content, list):
+            formatted = []
+            for item in content:
+                if isinstance(item, dict):
+                    # Format dictionary items
+                    if 'name' in item and 'description' in item:
+                        formatted.append(f"- **{item['name']}**: {item['description']}")
+                    elif 'description' in item:
+                        formatted.append(f"- {item['description']}")
+                        if 'code' in item:
+                            formatted.append(f"  ```\n  {item['code']}\n  ```")
+                    else:
+                        # Generic dict formatting
+                        formatted.append(f"- {', '.join(f'{k}: {v}' for k, v in item.items())}")
+                elif isinstance(item, str):
+                    formatted.append(f"- {item}")
+                else:
+                    formatted.append(f"- {str(item)}")
+            return '\n'.join(formatted)
+        elif isinstance(content, dict):
+            # Format as key-value pairs
+            return '\n'.join(f"- **{k}**: {v}" for k, v in content.items())
+        else:
+            # Plain text
+            return str(content)
 
     def export_documentation(self, doc: Documentation, format: str = 'markdown',
                         template: str = 'default', output_path: str = None) -> Union[str, bytes]:
@@ -693,19 +761,30 @@ Make it professional, clear, and detailed like official library documentation.""
         template_config = self.templates[template]
         content = f"# {doc.title}\n\n"
         
+        # Add description (AI-generated or default)
+        if doc.description:
+            content += f"{doc.description}\n\n"
+        
         if template == 'detailed':
             content += "## Table of Contents\n"
             for i, block in enumerate(doc.code_blocks):
                 content += f"{i+1}. Code Block {i+1}\n"
-            content += "\n## Code Blocks\n"
+            content += "\n"
         
-        for block in doc.code_blocks:
-            content += f"```{doc.language}\n{block.content}\n```\n\n"
-        
-        if template == 'detailed':
-            content += "## Project Metrics\n"
+        # Add metrics if in detailed mode
+        if template == 'detailed' and doc.metrics:
+            content += "## Metrics\n\n"
             for key, value in doc.metrics.items():
-                content += f"- {key}: {value}\n"
+                content += f"- **{key.replace('_', ' ').title()}**: {value}\n"
+            content += "\n"
+        
+        # Add code blocks
+        if doc.code_blocks:
+            content += "## Code\n\n"
+            for i, block in enumerate(doc.code_blocks):
+                if template == 'detailed':
+                    content += f"### Block {i+1} (Line {block.line_number})\n\n"
+                content += f"```{doc.language}\n{block.content}\n```\n\n"
         
         return content
 

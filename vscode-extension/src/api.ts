@@ -27,6 +27,36 @@ export function getConfig(): ExtensionConfig {
 }
 
 /**
+ * Check if localhost server is running
+ */
+async function isLocalhostRunning(): Promise<boolean> {
+  try {
+    const response = await fetch("http://localhost:5001/api/analyze", {
+      method: "HEAD",
+      signal: AbortSignal.timeout(1000), // 1 second timeout
+    });
+    return response.ok || response.status === 405; // 405 means endpoint exists but HEAD not allowed
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the appropriate backend URL (prioritize localhost if running)
+ */
+async function getBackendUrl(): Promise<string> {
+  const config = getConfig();
+  
+  // Check if localhost is running
+  if (await isLocalhostRunning()) {
+    return "http://localhost:5001";
+  }
+  
+  // Fallback to configured backend URL (Render)
+  return config.backendUrl;
+}
+
+/**
  * Make an API request to the backend
  */
 async function apiRequest<T>(
@@ -34,8 +64,8 @@ async function apiRequest<T>(
   method: string = "GET",
   body?: object
 ): Promise<T> {
-  const config = getConfig();
-  const url = `${config.backendUrl}${endpoint}`;
+  const baseUrl = await getBackendUrl();
+  const url = `${baseUrl}${endpoint}`;
 
   const options: RequestInit = {
     method,

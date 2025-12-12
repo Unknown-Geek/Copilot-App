@@ -41,20 +41,39 @@ var fs = __toESM(require("fs"));
 // src/api.ts
 var vscode = __toESM(require("vscode"));
 function getConfig() {
-  const config = vscode.workspace.getConfiguration("docgen");
+  const config2 = vscode.workspace.getConfiguration("docgen");
   return {
-    backendUrl: config.get(
+    backendUrl: config2.get(
       "backendUrl",
       "https://codedoc-vscode-extension.onrender.com"
     ),
-    defaultTargetLanguage: config.get("defaultTargetLanguage", "es"),
-    defaultExportFormat: config.get("defaultExportFormat", "markdown"),
-    showStatusBar: config.get("showStatusBar", true)
+    defaultTargetLanguage: config2.get("defaultTargetLanguage", "es"),
+    defaultExportFormat: config2.get("defaultExportFormat", "markdown"),
+    showStatusBar: config2.get("showStatusBar", true)
   };
 }
+async function isLocalhostRunning() {
+  try {
+    const response = await fetch("http://localhost:5001/api/analyze", {
+      method: "HEAD",
+      signal: AbortSignal.timeout(1e3)
+      // 1 second timeout
+    });
+    return response.ok || response.status === 405;
+  } catch {
+    return false;
+  }
+}
+async function getBackendUrl() {
+  const config2 = getConfig();
+  if (await isLocalhostRunning()) {
+    return "http://localhost:5001";
+  }
+  return config2.backendUrl;
+}
 async function apiRequest(endpoint, method = "GET", body) {
-  const config = getConfig();
-  const url = `${config.backendUrl}${endpoint}`;
+  const baseUrl = await getBackendUrl();
+  const url = `${baseUrl}${endpoint}`;
   const options = {
     method,
     headers: {
@@ -404,8 +423,8 @@ var outputChannel;
 function activate(context) {
   outputChannel = vscode3.window.createOutputChannel("DocGen");
   log("DocGen extension activated");
-  const config = getConfig();
-  if (config.showStatusBar) {
+  const config2 = getConfig();
+  if (config2.showStatusBar) {
     statusBarItem = vscode3.window.createStatusBarItem(
       vscode3.StatusBarAlignment.Right,
       100
