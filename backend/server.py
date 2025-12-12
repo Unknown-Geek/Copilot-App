@@ -63,6 +63,8 @@ def create_app(testing=False):
         logging.error(f"Startup Error:\n{str(e)}")
         raise
 
+# Create app instance at module level for gunicorn
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
     app.run(debug=True, port=5001)
