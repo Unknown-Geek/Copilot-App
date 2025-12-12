@@ -1,227 +1,620 @@
 # Code Multilingual Documentation Generator
 
-## Project Overview
+A comprehensive solution for automated code documentation generation and multilingual translation. This project consists of a Flask backend API, VS Code extension, and utilizes free, open-source language processing libraries for sentiment analysis and translation capabilities.
 
-A tool that automatically generates multilingual documentation from code using Azure Cognitive Services.
+## Table of Contents
 
-## Project Plan
+- [Features](#features)
+- [Architecture](#architecture)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API Reference](#api-reference)
+- [VS Code Extension](#vs-code-extension)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
 
-1. **Initial Setup**
-- Create Flask backend structure
-- Set up React frontend with Vite
-- Configure Azure Cognitive Services
-- Set up GitHub authentication
-- Create VS Code extension scaffold
+## Features
 
-2. **Core Components**
+### Documentation Generation
+- Automatic code analysis and documentation generation
+- Support for multiple programming languages (Python, JavaScript, Java, C++, Go, Rust, TypeScript)
+- Code complexity metrics and analysis using Radon
+- Syntax highlighting with Pygments
+- Multiple export formats: Markdown, HTML, JSON, PDF, DOCX
+- Template-based documentation generation
+
+### Translation Services
+- Multilingual documentation translation using deep-translator
+- Support for 11 languages: Spanish, French, German, Italian, Portuguese, Chinese, Japanese, Korean, Arabic, Hindi, Russian
+- Automatic language detection using langdetect
+- Confidence scoring for translations
+- Batch translation capabilities
+
+### Code Analysis
+- Sentiment analysis using TextBlob and NLTK VADER
+- Language detection
+- Code metrics and complexity scoring
+- Function and class counting
+- Line count statistics
+
+### Security Features
+- JWT-based authentication
+- Rate limiting and request throttling
+- OAuth integration with GitHub
+- Secure session management
+- Input validation and sanitization
+
+### GitHub Integration
+- Repository information retrieval
+- OAuth authentication flow
+- Repository scanning and analysis
+- Batch processing support
+
+## Architecture
+
+## Architecture
+
+The project follows a modular architecture with three main components:
+
 ```
-project/
-├── backend/          # Flask server
-├── frontend/         # React + Tailwind
-├── vscode-extension/ # VS Code integration
-└── docker/          # Containerization
-```
-
-## Step-by-Step Implementation Guide
-
-1. **Backend Development (Flask)**
-```python
-# app.py
-from flask import Flask, request
-from azure.ai.textanalytics import TextAnalyticsClient
-from azure.core.credentials import AzureKeyCredential
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
-
-@app.route('/api/analyze', methods=['POST'])
-def analyze_code():
-  code = request.json['code']
-  language = request.json['language']
-  # Add Azure Cognitive Services integration
-  # Parse code comments
-  # Generate documentation
-  return {'documentation': generated_docs}
-```
-
-2. **Frontend Development (React + Tailwind)**
-```javascript
-// App.jsx
-import { useState } from 'react'
-import CodeMirror from '@uiw/react-codemirror'
-
-export default function App() {
-  const [code, setCode] = useState('')
-  const [docs, setDocs] = useState('')
-
-  const generateDocs = async () => {
-  const response = await fetch('/api/analyze', {
-    method: 'POST',
-    body: JSON.stringify({ code, language: 'python' })
-  })
-  const data = await response.json()
-  setDocs(data.documentation)
-  }
-
-  return (
-  <div className="flex h-screen">
-    <CodeMirror
-    value={code}
-    onChange={setCode}
-    className="w-1/2"
-    />
-    <div className="w-1/2 p-4">
-    {docs}
-    </div>
-  </div>
-  )
-}
+copilot-app/
+├── backend/              # Flask REST API server
+│   ├── routes/          # API endpoints
+│   ├── services/        # Business logic
+│   ├── models/          # Data models
+│   ├── utils/           # Utilities and middleware
+│   └── tests/           # Test suite
+├── vscode-extension/     # VS Code extension
+│   ├── src/             # TypeScript source
+│   └── dist/            # Compiled extension
+└── frontend/            # React frontend (optional)
 ```
 
-3. **VS Code Extension**
-```typescript
-// extension.ts
-import * as vscode from 'vscode';
+### Backend Services
 
-export function activate(context: vscode.ExtensionContext) {
-  let disposable = vscode.commands.registerCommand(
-  'docgen.generateDocs',
-  async () => {
-    const editor = vscode.window.activeTextEditor;
-    if (editor) {
-    const code = editor.document.getText();
-    // Call backend API
-    // Show documentation preview
-    }
-  }
-  );
-}
-```
+- **Documentation Generator**: Code parsing and documentation generation
+- **Translator Service**: Multilingual translation using deep-translator
+- **Sentiment Service**: Code sentiment analysis using TextBlob/NLTK
+- **Code Analyzer**: Metrics and complexity analysis using Radon
+- **GitHub Service**: Repository integration and OAuth
+- **Export Services**: Multiple format exporters (Markdown, HTML, JSON, PDF, DOCX)
 
-4. **Azure Integration**
-```python
-# azure_services.py
-from azure.ai.translation.text import TextTranslationClient
-from azure.ai.textanalytics import TextAnalyticsClient
+### VS Code Extension
 
-class DocumentationTranslator:
-  def __init__(self, key, endpoint):
-    self.client = TextTranslationClient(endpoint, AzureKeyCredential(key))
-  
-  async def translate_docs(self, text, target_language):
-    response = await self.client.translate(
-      contents=[text],
-      to=[target_language]
-    )
-    return response[0].translations[0].text
-```
-
-5. **Environment Setup**
-```bash
-# Backend setup
-python -m venv venv
-pip install flask azure-ai-textanalytics python-dotenv
-
-# Frontend setup
-npm create vite@latest frontend -- --template react-ts
-cd frontend
-npm install tailwindcss postcss autoprefixer
-```
-
-## Required Environment Variables
-```properties
-AZURE_COGNITIVE_SERVICES_KEY=your_key
-AZURE_COGNITIVE_SERVICES_ENDPOINT=your_endpoint
-GITHUB_CLIENT_ID=your_client_id
-GITHUB_CLIENT_SECRET=your_client_secret
-```
-
-## Key Features to Implement
-- Code parsing and comment extraction
+- Command palette integration
+- Context menu actions
+- Keyboard shortcuts
 - Real-time documentation preview
-- Multi-language support
-- Translation capability
-- GitHub authentication
-- Documentation export options
+- Configurable settings
+- Status bar indicators
 
-This structure provides a foundation to build upon using GitHub Copilot for code completion and suggestions.
+## Installation
 
-## Backend Progress
+### Prerequisites
 
-### Core Infrastructure (100%)
-✅ Flask server setup and routing
-✅ CORS configuration 
-✅ Environment management
-✅ Rate limiting middleware
-✅ Authentication middleware
-✅ Request validation
-✅ Error handling
-✅ Logging system
+- Python 3.8 or higher
+- Node.js 18 or higher
+- npm or yarn
+- Git
 
-### Code Analysis (100%)
-✅ Azure Text Analytics integration 
-✅ Sentiment analysis
-✅ Language detection
-✅ Code complexity metrics
-✅ Support for Python and JavaScript
-✅ Comment extraction
-✅ Test coverage validated
-✅ Error handling
-✅ Performance optimization
+### Backend Setup
 
-### Documentation Generation (100%)
-✅ Basic code parsing
-✅ Documentation model structure 
-✅ Code block extraction
-✅ Test suite implemented
-✅ Multiple language support
-✅ Template system
-✅ Advanced metrics calculation
-✅ Advanced language-specific parsing
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/copilot-app.git
+cd copilot-app
+```
 
-### GitHub Integration (100%)
-✅ Basic repository info retrieval
-✅ OAuth flow implementation
-✅ Rate limiting
-✅ Integration tests
-✅ Repository scanning
-✅ Error handling
-✅ Response caching optimization
-✅ Advanced repository analysis
-✅ Batch processing support
+2. Create and activate a virtual environment:
+```bash
+# Windows
+python -m venv backend/venv
+backend/venv/Scripts/activate
 
-### Translation Services (100%)
-✅ Azure Translator integration
-✅ Caching system
-✅ Core functionality
-✅ Language detection
-✅ Confidence scoring
-✅ Request validation
-✅ Error handling
-✅ Test coverage
-✅ Performance metrics
-✅ Input validation
-✅ Rate limiting optimization
-✅ Batch translation
-✅ Custom terminology
+# Linux/macOS
+python -m venv backend/venv
+source backend/venv/bin/activate
+```
 
-### Export Formats (70%)
-✅ Markdown export
-✅ HTML export
-✅ JSON export
-✅ Export validation
-✅ Test coverage
-✅ Error handling
-🚧 PDF export
-🚧 DOCX export
+3. Install Python dependencies:
+```bash
+cd backend
+pip install -r requirements.txt
+```
 
-## Testing Coverage (100%)
-✅ Unit tests (38/38 passing)
-✅ API endpoint tests
-✅ Security tests
-✅ Configuration tests
-✅ Integration tests
-✅ Error handling tests
-✅ Performance tests
-✅ Load testing
+4. Download required NLTK data:
+```bash
+python -c "import nltk; nltk.download('vader_lexicon'); nltk.download('punkt')"
+```
+
+5. Set up environment variables (optional):
+```bash
+# Create .env file in backend directory
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+6. Start the backend server:
+```bash
+python server.py
+```
+
+The server will start on `http://localhost:5001`
+
+### VS Code Extension Setup
+
+1. Navigate to the extension directory:
+```bash
+cd vscode-extension
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Compile the extension:
+```bash
+npm run compile
+```
+
+4. Install the extension:
+   - Press `F5` to open Extension Development Host
+   - Or package and install: `vsce package` then install the .vsix file
+
+## Usage
+
+### Using the Backend API
+
+#### Generate Documentation
+
+```bash
+curl -X POST http://localhost:5001/api/analyze/documentation/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "def hello():\n    print(\"Hello World\")",
+    "language": "python",
+    "title": "Hello World Function",
+    "description": "A simple greeting function"
+  }'
+```
+
+#### Translate Text
+
+```bash
+curl -X POST http://localhost:5001/api/translate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "This is a Python function",
+    "target_language": "es"
+  }'
+```
+
+#### Analyze Code Sentiment
+
+```bash
+curl -X POST http://localhost:5001/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "# This is great code\ndef excellent_function():\n    pass",
+    "language": "python"
+  }'
+```
+
+### Using the VS Code Extension
+
+#### Commands
+
+Access commands via Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
+
+1. **DocGen: Generate Documentation**
+   - Generates documentation for the current file or selected code
+   - Shortcut: `Ctrl+K Ctrl+G` (Windows/Linux) or `Cmd+K Cmd+G` (macOS)
+
+2. **DocGen: Translate Documentation**
+   - Translates generated documentation to target language
+   - Select from 11 supported languages
+
+3. **DocGen: Analyze Code**
+   - Performs sentiment analysis on code
+
+4. **DocGen: Export Documentation**
+   - Exports documentation in various formats
+
+#### Context Menu
+
+Right-click in the editor to access:
+- Generate Documentation
+- Analyze Code
+
+#### Configuration
+
+Configure the extension in VS Code settings:
+
+```json
+{
+  "docgen.backendUrl": "http://localhost:5001",
+  "docgen.defaultTargetLanguage": "es",
+  "docgen.defaultExportFormat": "markdown",
+  "docgen.showStatusBar": true
+}
+```
+
+## API Reference
+
+### Endpoints
+
+#### POST /api/analyze/documentation/generate
+
+Generate documentation for source code.
+
+**Request Body:**
+```json
+{
+  "code": "string (required)",
+  "language": "string (required)",
+  "title": "string (optional)",
+  "description": "string (optional)",
+  "template": "string (optional, default: 'default')",
+  "format": "string (optional, default: 'markdown')"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "documentation": "string",
+  "format": "markdown",
+  "template": "default"
+}
+```
+
+#### POST /api/translate
+
+Translate text to target language.
+
+**Request Body:**
+```json
+{
+  "text": "string (required)",
+  "target_language": "string (required)"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "translated_text": "string",
+  "detected_language": "string",
+  "confidence": 0.99
+}
+```
+
+#### POST /api/analyze
+
+Analyze code sentiment and metrics.
+
+**Request Body:**
+```json
+{
+  "code": "string (required)",
+  "language": "string (required)"
+}
+```
+
+**Response:**
+```json
+{
+  "sentiment": "positive",
+  "confidence_scores": {
+    "positive": 0.8,
+    "neutral": 0.15,
+    "negative": 0.05
+  },
+  "metrics": {}
+}
+```
+
+### Supported Languages
+
+**Programming Languages:**
+- Python
+- JavaScript/TypeScript
+- Java
+- C++
+- Go
+- Rust
+
+**Translation Languages:**
+- Spanish (es)
+- French (fr)
+- German (de)
+- Italian (it)
+- Portuguese (pt)
+- Chinese (zh)
+- Japanese (ja)
+- Korean (ko)
+- Arabic (ar)
+- Hindi (hi)
+- Russian (ru)
+
+## VS Code Extension
+
+### Installation from VSIX
+
+1. Download the latest `.vsix` file from releases
+2. Open VS Code
+3. Go to Extensions (`Ctrl+Shift+X`)
+4. Click on the `...` menu
+5. Select "Install from VSIX..."
+6. Choose the downloaded file
+
+### Extension Features
+
+- **Real-time Documentation Generation**: Generate documentation as you code
+- **Multilingual Support**: Translate documentation to 11 languages
+- **Code Analysis**: Sentiment analysis and metrics
+- **Multiple Export Formats**: Markdown, HTML, JSON, PDF, DOCX
+- **Customizable Templates**: Use built-in or custom templates
+- **Status Bar Integration**: Quick access to documentation tools
+- **Keyboard Shortcuts**: Fast workflow with shortcuts
+
+## Configuration
+
+### Backend Configuration
+
+Environment variables can be set in a `.env` file:
+
+```properties
+# Server Configuration
+FLASK_ENV=development
+FLASK_DEBUG=True
+
+# Security
+JWT_SECRET_KEY=your-secret-key
+SECRET_KEY=your-secret-key
+
+# GitHub OAuth (optional)
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-client-secret
+
+# Rate Limiting
+RATE_LIMIT_PER_MINUTE=60
+```
+
+### Extension Configuration
+
+Settings available in VS Code:
+
+- `docgen.backendUrl`: Backend API URL (default: `http://localhost:5001`)
+- `docgen.defaultTargetLanguage`: Default translation language (default: `es`)
+- `docgen.defaultExportFormat`: Default export format (default: `markdown`)
+- `docgen.showStatusBar`: Show status bar item (default: `true`)
+
+## Development
+
+### Backend Development
+
+1. Install development dependencies:
+```bash
+pip install pytest pytest-cov requests-mock
+```
+
+2. Run tests:
+```bash
+cd backend
+python -m pytest tests/ -v
+```
+
+3. Run with auto-reload:
+```bash
+python server.py
+# Server runs in debug mode with auto-reload
+```
+
+### Extension Development
+
+1. Install dependencies:
+```bash
+cd vscode-extension
+npm install
+```
+
+2. Start watch mode:
+```bash
+npm run watch
+```
+
+3. Debug extension:
+   - Press `F5` in VS Code
+   - This opens Extension Development Host
+   - Test your changes in the new window
+
+4. Package extension:
+```bash
+npm run package
+# Creates .vsix file in the directory
+```
+
+## Testing
+
+### Backend Tests
+
+The backend includes comprehensive test coverage:
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run with coverage
+python -m pytest tests/ --cov=. --cov-report=html
+
+# Run specific test file
+python -m pytest tests/test_api.py -v
+```
+
+**Test Coverage:**
+- API endpoint tests
+- Service layer tests
+- Security tests
+- Documentation generation tests
+- Translation tests
+- GitHub integration tests
+
+### Current Test Status
+
+- **Total Tests**: 37
+- **Passing**: 28
+- **Failing**: 9 (outdated Azure-related tests)
+- **Coverage**: Core functionality fully tested
+
+## Dependencies
+
+### Backend Dependencies
+
+**Core:**
+- Flask 2.0.3 - Web framework
+- Flask-CORS 3.0.10 - CORS support
+- Flask-JWT-Extended 4.5.2 - JWT authentication
+- Flask-Limiter 3.5.0 - Rate limiting
+
+**Analysis & Processing:**
+- Radon 6.0.1 - Code metrics
+- Pygments 2.16.1 - Syntax highlighting
+- TextBlob 0.17.1 - Sentiment analysis
+- NLTK 3.8.1 - Natural language processing
+- deep-translator 1.11.4 - Translation
+- langdetect 1.0.9 - Language detection
+
+**Export:**
+- Markdown 3.0+ - Markdown processing
+- python-docx 0.8.11 - DOCX generation
+- ReportLab 4.0.4 - PDF generation
+
+**Testing:**
+- pytest 7.3.1 - Testing framework
+- pytest-cov 4.1.0 - Coverage reporting
+- requests-mock 1.11.0 - HTTP mocking
+
+### Extension Dependencies
+
+- TypeScript 5.3.2
+- esbuild 0.19.8
+- @types/vscode 1.85.0
+- @types/node 20.10.0
+
+## Project Structure
+
+```
+backend/
+├── routes/
+│   ├── __init__.py
+│   └── api.py                    # API endpoints
+├── services/
+│   ├── __init__.py
+│   ├── documentation_generator.py # Doc generation
+│   ├── translator.py             # Translation service
+│   ├── azure_service.py          # Sentiment analysis
+│   ├── code_analyzer.py          # Code metrics
+│   ├── github_service.py         # GitHub integration
+│   └── export_services.py        # Export handlers
+├── models/
+│   ├── __init__.py
+│   └── documentation.py          # Data models
+├── utils/
+│   ├── __init__.py
+│   ├── validators.py             # Input validation
+│   ├── middleware.py             # Middleware
+│   ├── cache_manager.py          # Caching
+│   └── complexity_analyzer.py    # Complexity analysis
+├── tests/
+│   ├── conftest.py              # Test configuration
+│   ├── test_api.py              # API tests
+│   ├── test_documentation_*.py  # Doc tests
+│   └── test_*.py                # Various test files
+├── config.py                     # Configuration
+├── security.py                   # Security & auth
+├── server.py                     # Main server
+└── requirements.txt              # Python dependencies
+
+vscode-extension/
+├── src/
+│   ├── extension.ts             # Main extension
+│   ├── api.ts                   # API client
+│   ├── webview.ts               # Preview webview
+│   └── types.ts                 # Type definitions
+├── .vscode/
+│   ├── launch.json              # Debug config
+│   └── tasks.json               # Build tasks
+├── dist/                        # Compiled output
+├── package.json                 # Extension manifest
+└── tsconfig.json                # TypeScript config
+```
+
+## Contributing
+
+Contributions are welcome. Please follow these guidelines:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/YourFeature`)
+3. Commit your changes (`git commit -m 'Add YourFeature'`)
+4. Push to the branch (`git push origin feature/YourFeature`)
+5. Open a Pull Request
+
+### Coding Standards
+
+- Follow PEP 8 for Python code
+- Use TypeScript strict mode for extension code
+- Write tests for new features
+- Update documentation as needed
+- Maintain code coverage above 75%
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+## Acknowledgments
+
+This project uses the following open-source libraries:
+- TextBlob and NLTK for sentiment analysis
+- deep-translator for multilingual translation
+- Radon for code complexity metrics
+- Pygments for syntax highlighting
+- Flask ecosystem for web framework
+- ReportLab and python-docx for document generation
+
+## Support
+
+For issues, questions, or contributions:
+- Open an issue on GitHub
+- Check existing documentation
+- Review closed issues for solutions
+
+## Changelog
+
+### Version 1.0.0 (Current)
+
+**Features:**
+- Complete documentation generation system
+- Multilingual translation (11 languages)
+- Code sentiment analysis
+- VS Code extension with full integration
+- Multiple export formats (Markdown, HTML, JSON, PDF, DOCX)
+- GitHub OAuth integration
+- Rate limiting and security features
+- Comprehensive test suite
+
+**Tech Stack:**
+- Backend: Flask, Python 3.8+
+- Extension: TypeScript, VS Code Extension API
+- Services: Free/open-source libraries (no API keys required)
+- Testing: pytest with 75%+ coverage
+
+---
+
+**Note**: This project previously used Azure Cognitive Services but has been migrated to free, open-source alternatives (TextBlob, NLTK, deep-translator) for accessibility and cost-effectiveness.

@@ -11,7 +11,7 @@ import { DocumentationResponse, TranslationResponse, AnalysisResponse, Extension
 export function getConfig(): ExtensionConfig {
     const config = vscode.workspace.getConfiguration('docgen');
     return {
-        backendUrl: config.get<string>('backendUrl', 'http://localhost:5000'),
+        backendUrl: config.get<string>('backendUrl', 'http://localhost:5001'),
         defaultTargetLanguage: config.get<string>('defaultTargetLanguage', 'es'),
         defaultExportFormat: config.get<string>('defaultExportFormat', 'markdown'),
         showStatusBar: config.get<boolean>('showStatusBar', true)

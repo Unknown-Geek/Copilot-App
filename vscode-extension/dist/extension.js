@@ -43,7 +43,7 @@ var vscode = __toESM(require("vscode"));
 function getConfig() {
   const config = vscode.workspace.getConfiguration("docgen");
   return {
-    backendUrl: config.get("backendUrl", "http://localhost:5000"),
+    backendUrl: config.get("backendUrl", "http://localhost:5001"),
     defaultTargetLanguage: config.get("defaultTargetLanguage", "es"),
     defaultExportFormat: config.get("defaultExportFormat", "markdown"),
     showStatusBar: config.get("showStatusBar", true)

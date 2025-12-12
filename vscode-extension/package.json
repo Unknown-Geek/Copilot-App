@@ -18,7 +18,9 @@
         "azure",
         "code analysis"
     ],
-    "activationEvents": [],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
     "main": "./dist/extension.js",
     "contributes": {
         "commands": [
@@ -46,8 +48,8 @@
         "keybindings": [
             {
                 "command": "docgen.generateDocs",
-                "key": "ctrl+shift+d",
-                "mac": "cmd+shift+d",
+                "key": "ctrl+k ctrl+g",
+                "mac": "cmd+k cmd+g",
                 "when": "editorTextFocus"
             }
         ],
@@ -70,7 +72,7 @@
             "properties": {
                 "docgen.backendUrl": {
                     "type": "string",
-                    "default": "http://localhost:5000",
+                    "default": "http://localhost:5001",
                     "description": "URL of the DocGen backend server"
                 },
                 "docgen.defaultTargetLanguage": {

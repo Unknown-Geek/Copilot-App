@@ -46,6 +46,7 @@ class Documentation:
         self.language = language
         self.code_blocks = code_blocks
         self.metrics = metrics
+        self.generated_at = datetime.datetime.now().isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert Documentation to dictionary"""
@@ -213,13 +214,16 @@ class DocumentationGenerator:
             blocks.append(CodeBlock(content='\n'.join(current_block)))
         return blocks
 
-    def generate(self, code: str, language: str) -> Documentation:
+    def generate(self, code: str, language: str, title: Optional[str] = None, 
+                 description: Optional[str] = None) -> Documentation:
         """
         Generate documentation for the given source code.
 
         Args:
             code (str): The source code to generate documentation for
             language (str): Programming language of the source code
+            title (str, optional): Custom title for the documentation
+            description (str, optional): Custom description for the documentation
 
         Returns:
             Documentation: Generated documentation object
@@ -236,8 +240,8 @@ class DocumentationGenerator:
         metrics = self._calculate_metrics(code_blocks)
 
         return Documentation(
-            title=f"{language.capitalize()} Documentation",
-            description="Auto-generated documentation",
+            title=title or f"{language.capitalize()} Documentation",
+            description=description or "Auto-generated documentation",
             language=language,
             code_blocks=code_blocks,
             metrics=metrics
