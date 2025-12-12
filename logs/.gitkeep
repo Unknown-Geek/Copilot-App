@@ -1,0 +1,5 @@
+# Logs Directory
+
+This directory stores application logs when running in Docker.
+
+Files in this directory are persisted across container restarts.

@@ -1,0 +1,5 @@
+# Exports Directory
+
+This directory is used to store exported documentation files (PDF, DOCX, etc.) when using Docker.
+
+Files in this directory are persisted across container restarts.

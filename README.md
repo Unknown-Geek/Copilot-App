@@ -19,6 +19,7 @@ A comprehensive solution for automated code documentation generation and multili
 ## Features
 
 ### Documentation Generation
+
 - Automatic code analysis and documentation generation
 - Support for multiple programming languages (Python, JavaScript, Java, C++, Go, Rust, TypeScript)
 - Code complexity metrics and analysis using Radon
@@ -27,6 +28,7 @@ A comprehensive solution for automated code documentation generation and multili
 - Template-based documentation generation
 
 ### Translation Services
+
 - Multilingual documentation translation using deep-translator
 - Support for 11 languages: Spanish, French, German, Italian, Portuguese, Chinese, Japanese, Korean, Arabic, Hindi, Russian
 - Automatic language detection using langdetect
@@ -34,6 +36,7 @@ A comprehensive solution for automated code documentation generation and multili
 - Batch translation capabilities
 
 ### Code Analysis
+
 - Sentiment analysis using TextBlob and NLTK VADER
 - Language detection
 - Code metrics and complexity scoring
@@ -41,6 +44,7 @@ A comprehensive solution for automated code documentation generation and multili
 - Line count statistics
 
 ### Security Features
+
 - JWT-based authentication
 - Rate limiting and request throttling
 - OAuth integration with GitHub
@@ -48,6 +52,7 @@ A comprehensive solution for automated code documentation generation and multili
 - Input validation and sanitization
 
 ### GitHub Integration
+
 - Repository information retrieval
 - OAuth authentication flow
 - Repository scanning and analysis
@@ -95,12 +100,64 @@ copilot-app/
 
 ### Prerequisites
 
+**Option 1: Docker (Recommended)**
+- Docker 20.10 or higher
+- Docker Compose 2.0 or higher
+
+**Option 2: Manual Installation**
 - Python 3.8 or higher
 - Node.js 18 or higher
 - npm or yarn
 - Git
 
-### Backend Setup
+### Quick Start with Docker
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/copilot-app.git
+cd copilot-app
+```
+
+2. Create environment file:
+```bash
+cp .env.docker.example .env
+# Edit .env with your settings (optional for basic usage)
+```
+
+3. Build and start services:
+```bash
+# Using Docker Compose
+docker-compose up -d
+
+# Or using Make (if available)
+make up
+```
+
+4. Access the backend:
+```
+Backend API: http://localhost:5001
+Health Check: http://localhost:5001/api/config
+```
+
+**Docker Commands:**
+```bash
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Rebuild after code changes
+docker-compose build
+
+# Development mode (with hot reload)
+docker-compose -f docker-compose.dev.yml up
+
+# Run tests in container
+docker-compose exec backend python -m pytest tests/ -v
+```
+
+### Manual Backend Setup
 
 1. Clone the repository:
 ```bash
@@ -147,16 +204,19 @@ The server will start on `http://localhost:5001`
 ### VS Code Extension Setup
 
 1. Navigate to the extension directory:
+
 ```bash
 cd vscode-extension
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Compile the extension:
+
 ```bash
 npm run compile
 ```
@@ -211,14 +271,17 @@ curl -X POST http://localhost:5001/api/analyze \
 Access commands via Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 
 1. **DocGen: Generate Documentation**
+
    - Generates documentation for the current file or selected code
    - Shortcut: `Ctrl+K Ctrl+G` (Windows/Linux) or `Cmd+K Cmd+G` (macOS)
 
 2. **DocGen: Translate Documentation**
+
    - Translates generated documentation to target language
    - Select from 11 supported languages
 
 3. **DocGen: Analyze Code**
+
    - Performs sentiment analysis on code
 
 4. **DocGen: Export Documentation**
@@ -227,6 +290,7 @@ Access commands via Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 #### Context Menu
 
 Right-click in the editor to access:
+
 - Generate Documentation
 - Analyze Code
 
@@ -252,6 +316,7 @@ Configure the extension in VS Code settings:
 Generate documentation for source code.
 
 **Request Body:**
+
 ```json
 {
   "code": "string (required)",
@@ -264,6 +329,7 @@ Generate documentation for source code.
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -278,6 +344,7 @@ Generate documentation for source code.
 Translate text to target language.
 
 **Request Body:**
+
 ```json
 {
   "text": "string (required)",
@@ -286,6 +353,7 @@ Translate text to target language.
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -300,6 +368,7 @@ Translate text to target language.
 Analyze code sentiment and metrics.
 
 **Request Body:**
+
 ```json
 {
   "code": "string (required)",
@@ -308,6 +377,7 @@ Analyze code sentiment and metrics.
 ```
 
 **Response:**
+
 ```json
 {
   "sentiment": "positive",
@@ -323,6 +393,7 @@ Analyze code sentiment and metrics.
 ### Supported Languages
 
 **Programming Languages:**
+
 - Python
 - JavaScript/TypeScript
 - Java
@@ -331,6 +402,7 @@ Analyze code sentiment and metrics.
 - Rust
 
 **Translation Languages:**
+
 - Spanish (es)
 - French (fr)
 - German (de)
@@ -401,20 +473,58 @@ Settings available in VS Code:
 ### Backend Development
 
 1. Install development dependencies:
+
 ```bash
 pip install pytest pytest-cov requests-mock
 ```
 
 2. Run tests:
+
 ```bash
 cd backend
 python -m pytest tests/ -v
 ```
 
 3. Run with auto-reload:
+
 ```bash
 python server.py
 # Server runs in debug mode with auto-reload
+```
+
+### Docker Development
+
+**Development Mode:**
+```bash
+# Start with hot reload
+docker-compose -f docker-compose.dev.yml up
+
+# Access running container
+docker-compose exec backend bash
+
+# View logs
+docker-compose logs -f backend
+```
+
+**Using Makefile:**
+```bash
+# Build images
+make build
+
+# Start production
+make prod
+
+# Start development
+make dev
+
+# Run tests
+make test
+
+# View logs
+make logs
+
+# Clean everything
+make clean
 ```
 
 ### Extension Development
@@ -441,6 +551,97 @@ npm run package
 # Creates .vsix file in the directory
 ```
 
+## Deployment
+
+### Deploy with Docker
+
+**Production Deployment:**
+
+1. Build production image:
+```bash
+docker-compose build
+```
+
+2. Run in production:
+```bash
+docker-compose up -d
+```
+
+3. Configure reverse proxy (nginx/traefik):
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### Deploy to Render (Free Tier)
+
+1. Push to GitHub with all Docker files
+
+2. Connect repository to Render:
+   - Go to https://render.com
+   - Create new Web Service
+   - Connect GitHub repository
+   - Render auto-detects `render.yaml`
+
+3. Configuration (auto-detected from render.yaml):
+   - **Environment**: Docker
+   - **Dockerfile Path**: `./backend/Dockerfile`
+   - **Build Command**: Auto
+   - **Start Command**: Auto
+
+4. Environment variables (set in Render dashboard):
+   - `JWT_SECRET_KEY`: Generate secure key
+   - `SECRET_KEY`: Generate secure key
+
+**Render Features:**
+- Automatic HTTPS
+- Custom domains
+- Auto-deploy on git push
+- Free SSL certificates
+
+### Deploy to Railway
+
+1. Install Railway CLI:
+```bash
+npm install -g @railway/cli
+```
+
+2. Login and deploy:
+```bash
+railway login
+railway init
+railway up
+```
+
+3. Configure environment variables in Railway dashboard
+
+### Deploy to Heroku
+
+1. Create Heroku app:
+```bash
+heroku create your-app-name
+heroku stack:set container
+```
+
+2. Push to Heroku:
+```bash
+git push heroku main
+```
+
+3. Set environment variables:
+```bash
+heroku config:set JWT_SECRET_KEY=your-secret-key
+heroku config:set SECRET_KEY=your-secret-key
+```
+
 ## Testing
 
 ### Backend Tests
@@ -459,6 +660,7 @@ python -m pytest tests/test_api.py -v
 ```
 
 **Test Coverage:**
+
 - API endpoint tests
 - Service layer tests
 - Security tests
@@ -478,12 +680,14 @@ python -m pytest tests/test_api.py -v
 ### Backend Dependencies
 
 **Core:**
+
 - Flask 2.0.3 - Web framework
 - Flask-CORS 3.0.10 - CORS support
 - Flask-JWT-Extended 4.5.2 - JWT authentication
 - Flask-Limiter 3.5.0 - Rate limiting
 
 **Analysis & Processing:**
+
 - Radon 6.0.1 - Code metrics
 - Pygments 2.16.1 - Syntax highlighting
 - TextBlob 0.17.1 - Sentiment analysis
@@ -492,11 +696,13 @@ python -m pytest tests/test_api.py -v
 - langdetect 1.0.9 - Language detection
 
 **Export:**
+
 - Markdown 3.0+ - Markdown processing
 - python-docx 0.8.11 - DOCX generation
 - ReportLab 4.0.4 - PDF generation
 
 **Testing:**
+
 - pytest 7.3.1 - Testing framework
 - pytest-cov 4.1.0 - Coverage reporting
 - requests-mock 1.11.0 - HTTP mocking
@@ -581,6 +787,7 @@ This project is licensed under the MIT License. See the LICENSE file for details
 ## Acknowledgments
 
 This project uses the following open-source libraries:
+
 - TextBlob and NLTK for sentiment analysis
 - deep-translator for multilingual translation
 - Radon for code complexity metrics
@@ -591,6 +798,7 @@ This project uses the following open-source libraries:
 ## Support
 
 For issues, questions, or contributions:
+
 - Open an issue on GitHub
 - Check existing documentation
 - Review closed issues for solutions
@@ -600,6 +808,7 @@ For issues, questions, or contributions:
 ### Version 1.0.0 (Current)
 
 **Features:**
+
 - Complete documentation generation system
 - Multilingual translation (11 languages)
 - Code sentiment analysis
@@ -610,6 +819,7 @@ For issues, questions, or contributions:
 - Comprehensive test suite
 
 **Tech Stack:**
+
 - Backend: Flask, Python 3.8+
 - Extension: TypeScript, VS Code Extension API
 - Services: Free/open-source libraries (no API keys required)
