@@ -11,7 +11,7 @@ from .security import security, limiter
 
 def create_app(testing=False):
     """Create and configure the Flask application"""
-    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+    load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
     
     app = Flask(__name__)
     CORS(app)

@@ -13,6 +13,7 @@ pygments==2.16.1
 python-docx==0.8.11
 reportlab==4.0.4
 gunicorn==21.2.0
+google-generativeai==0.3.2
 
 # Free alternatives to Azure (no API keys required)
 textblob==0.17.1

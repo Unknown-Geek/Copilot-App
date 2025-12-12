@@ -27,7 +27,8 @@ limiter = Limiter(
 )
 
 def create_app(testing=False):
-    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+    # Load environment variables from backend/.env
+    load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
     
     app = Flask(__name__)
     CORS(app)

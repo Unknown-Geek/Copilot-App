@@ -5,6 +5,7 @@ import datetime
 from io import BytesIO
 from typing import List, Dict, Any, Literal, Optional, Union
 from dataclasses import dataclass, field
+import os
 
 # Remove pdfkit import
 from reportlab.lib import colors
@@ -14,6 +15,17 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from docx import Document
 from pygments import lex
 from pygments.lexers import get_lexer_by_name
+
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+    # Configure Gemini API
+    gemini_api_key = os.getenv('GEMINI_API_KEY', '')
+    if gemini_api_key:
+        genai.configure(api_key=gemini_api_key)
+except ImportError:
+    GEMINI_AVAILABLE = False
+    logging.warning("Google Generative AI package not found. AI-enhanced documentation will be disabled.")
 
 try:
     import radon.metrics
@@ -66,9 +78,11 @@ class Documentation:
         }
 
 class DocumentationGenerator:
-    def __init__(self):
+    def __init__(self, use_ai=True):
         # Add RADON_AVAILABLE as class attribute
         self.RADON_AVAILABLE = RADON_AVAILABLE
+        self.GEMINI_AVAILABLE = GEMINI_AVAILABLE
+        self.use_ai = use_ai and GEMINI_AVAILABLE
         self.exporters = {
             'markdown': self._export_markdown,
             'html': self._export_html,
@@ -105,6 +119,60 @@ class DocumentationGenerator:
             'json': self._export_json
         }
         self.logger = logging.getLogger(__name__)
+        
+        # Initialize Gemini model if available
+        if self.use_ai:
+            try:
+                self.gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+                self.logger.info("Gemini AI initialized for enhanced documentation")
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize Gemini: {e}")
+                self.use_ai = False
+
+    def _generate_ai_documentation(self, code: str, language: str) -> Dict[str, str]:
+        """Generate professional documentation using Gemini AI"""
+        if not self.use_ai:
+            return None
+            
+        try:
+            prompt = f"""You are a technical documentation expert. Analyze the following {language} code and generate comprehensive, professional documentation.
+
+Code:
+```{language}
+{code}
+```
+
+Generate documentation with the following sections:
+1. **Title**: A clear, concise title for this code module
+2. **Overview**: A brief summary (2-3 sentences) of what this code does
+3. **Purpose**: Detailed explanation of the purpose and use case
+4. **Components**: List and explain each class, function, method, or configuration
+5. **Parameters/Attributes**: Document all parameters, attributes, environment variables
+6. **Return Values**: Explain what is returned (if applicable)
+7. **Usage Examples**: Provide practical usage examples
+8. **Best Practices**: Recommendations for using this code
+9. **Notes**: Any important caveats, warnings, or additional information
+
+Format the response as a JSON object with these keys: title, overview, purpose, components, parameters, returns, examples, best_practices, notes.
+Make it professional, clear, and detailed like official library documentation."""
+
+            response = self.gemini_model.generate_content(prompt)
+            
+            # Try to parse JSON response
+            try:
+                result = json.loads(response.text)
+                return result
+            except json.JSONDecodeError:
+                # If not JSON, return as plain text documentation
+                return {
+                    'title': 'Generated Documentation',
+                    'overview': response.text[:500],
+                    'full_content': response.text
+                }
+                
+        except Exception as e:
+            self.logger.error(f"AI documentation generation failed: {e}")
+            return None
 
     def _calculate_metrics(self, code_blocks: List[CodeBlock]) -> Dict[str, Any]:
         total_blocks = len(code_blocks)
@@ -215,7 +283,7 @@ class DocumentationGenerator:
         return blocks
 
     def generate(self, code: str, language: str, title: Optional[str] = None, 
-                 description: Optional[str] = None) -> Documentation:
+                 description: Optional[str] = None, use_ai: bool = True) -> Documentation:
         """
         Generate documentation for the given source code.
 
@@ -224,6 +292,7 @@ class DocumentationGenerator:
             language (str): Programming language of the source code
             title (str, optional): Custom title for the documentation
             description (str, optional): Custom description for the documentation
+            use_ai (bool): Whether to use AI for enhanced documentation (default: True)
 
         Returns:
             Documentation: Generated documentation object
@@ -236,16 +305,68 @@ class DocumentationGenerator:
         if language not in self.supported_languages:
             raise ValueError(f"Unsupported language: {language}")
 
+        # Try AI-enhanced documentation first
+        ai_doc = None
+        self.logger.info(f"AI flags: use_ai={use_ai}, self.use_ai={self.use_ai}, GEMINI_AVAILABLE={self.GEMINI_AVAILABLE}")
+        if use_ai and self.use_ai:
+            self.logger.info("Attempting AI documentation generation...")
+            ai_doc = self._generate_ai_documentation(code, language)
+            if ai_doc:
+                self.logger.info("AI documentation generated successfully")
+            else:
+                self.logger.warning("AI documentation generation returned None")
+        
         code_blocks = self._parse_code_blocks(code, language)
         metrics = self._calculate_metrics(code_blocks)
 
-        return Documentation(
-            title=title or f"{language.capitalize()} Documentation",
-            description=description or "Auto-generated documentation",
+        # Use AI-generated content if available, otherwise use defaults
+        if ai_doc and isinstance(ai_doc, dict):
+            doc_title = title or ai_doc.get('title', f"{language.capitalize()} Documentation")
+            doc_description = description or self._format_ai_description(ai_doc)
+        else:
+            doc_title = title or f"{language.capitalize()} Documentation"
+            doc_description = description or "Auto-generated documentation"
+
+        doc = Documentation(
+            title=doc_title,
+            description=doc_description,
             language=language,
             code_blocks=code_blocks,
             metrics=metrics
         )
+        
+        # Add AI documentation as metadata if available
+        if ai_doc:
+            doc.ai_enhanced = ai_doc
+        
+        return doc
+    
+    def _format_ai_description(self, ai_doc: Dict[str, str]) -> str:
+        """Format AI-generated documentation into a readable description"""
+        sections = []
+        
+        if 'overview' in ai_doc:
+            sections.append(ai_doc['overview'])
+        
+        if 'purpose' in ai_doc:
+            sections.append(f"\n\n**Purpose:**\n{ai_doc['purpose']}")
+        
+        if 'components' in ai_doc:
+            sections.append(f"\n\n**Components:**\n{ai_doc['components']}")
+        
+        if 'parameters' in ai_doc:
+            sections.append(f"\n\n**Parameters:**\n{ai_doc['parameters']}")
+        
+        if 'examples' in ai_doc:
+            sections.append(f"\n\n**Usage Examples:**\n{ai_doc['examples']}")
+        
+        if 'best_practices' in ai_doc:
+            sections.append(f"\n\n**Best Practices:**\n{ai_doc['best_practices']}")
+        
+        if 'notes' in ai_doc:
+            sections.append(f"\n\n**Notes:**\n{ai_doc['notes']}")
+        
+        return '\n'.join(sections)
 
     def export_documentation(self, doc: Documentation, format: str = 'markdown',
                         template: str = 'default', output_path: str = None) -> Union[str, bytes]:
