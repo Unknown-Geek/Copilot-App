@@ -101,10 +101,12 @@ copilot-app/
 ### Prerequisites
 
 **Option 1: Docker (Recommended)**
+
 - Docker 20.10 or higher
 - Docker Compose 2.0 or higher
 
 **Option 2: Manual Installation**
+
 - Python 3.8 or higher
 - Node.js 18 or higher
 - npm or yarn
@@ -113,18 +115,21 @@ copilot-app/
 ### Quick Start with Docker
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/copilot-app.git
 cd copilot-app
 ```
 
 2. Create environment file:
+
 ```bash
 cp .env.docker.example .env
 # Edit .env with your settings (optional for basic usage)
 ```
 
 3. Build and start services:
+
 ```bash
 # Using Docker Compose
 docker-compose up -d
@@ -134,12 +139,14 @@ make up
 ```
 
 4. Access the backend:
+
 ```
 Backend API: http://localhost:5001
 Health Check: http://localhost:5001/api/config
 ```
 
 **Docker Commands:**
+
 ```bash
 # View logs
 docker-compose logs -f
@@ -160,12 +167,14 @@ docker-compose exec backend python -m pytest tests/ -v
 ### Manual Backend Setup
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/copilot-app.git
 cd copilot-app
 ```
 
 2. Create and activate a virtual environment:
+
 ```bash
 # Windows
 python -m venv backend/venv
@@ -177,17 +186,20 @@ source backend/venv/bin/activate
 ```
 
 3. Install Python dependencies:
+
 ```bash
 cd backend
 pip install -r requirements.txt
 ```
 
 4. Download required NLTK data:
+
 ```bash
 python -c "import nltk; nltk.download('vader_lexicon'); nltk.download('punkt')"
 ```
 
 5. Set up environment variables (optional):
+
 ```bash
 # Create .env file in backend directory
 cp .env.example .env
@@ -195,6 +207,7 @@ cp .env.example .env
 ```
 
 6. Start the backend server:
+
 ```bash
 python server.py
 ```
@@ -495,6 +508,7 @@ python server.py
 ### Docker Development
 
 **Development Mode:**
+
 ```bash
 # Start with hot reload
 docker-compose -f docker-compose.dev.yml up
@@ -507,6 +521,7 @@ docker-compose logs -f backend
 ```
 
 **Using Makefile:**
+
 ```bash
 # Build images
 make build
@@ -530,22 +545,26 @@ make clean
 ### Extension Development
 
 1. Install dependencies:
+
 ```bash
 cd vscode-extension
 npm install
 ```
 
 2. Start watch mode:
+
 ```bash
 npm run watch
 ```
 
 3. Debug extension:
+
    - Press `F5` in VS Code
    - This opens Extension Development Host
    - Test your changes in the new window
 
 4. Package extension:
+
 ```bash
 npm run package
 # Creates .vsix file in the directory
@@ -558,16 +577,19 @@ npm run package
 **Production Deployment:**
 
 1. Build production image:
+
 ```bash
 docker-compose build
 ```
 
 2. Run in production:
+
 ```bash
 docker-compose up -d
 ```
 
 3. Configure reverse proxy (nginx/traefik):
+
 ```nginx
 server {
     listen 80;
@@ -586,12 +608,14 @@ server {
 1. Push to GitHub with all Docker files
 
 2. Connect repository to Render:
+
    - Go to https://render.com
    - Create new Web Service
    - Connect GitHub repository
    - Render auto-detects `render.yaml`
 
 3. Configuration (auto-detected from render.yaml):
+
    - **Environment**: Docker
    - **Dockerfile Path**: `./backend/Dockerfile`
    - **Build Command**: Auto
@@ -602,6 +626,7 @@ server {
    - `SECRET_KEY`: Generate secure key
 
 **Render Features:**
+
 - Automatic HTTPS
 - Custom domains
 - Auto-deploy on git push
@@ -610,11 +635,13 @@ server {
 ### Deploy to Railway
 
 1. Install Railway CLI:
+
 ```bash
 npm install -g @railway/cli
 ```
 
 2. Login and deploy:
+
 ```bash
 railway login
 railway init
@@ -626,17 +653,20 @@ railway up
 ### Deploy to Heroku
 
 1. Create Heroku app:
+
 ```bash
 heroku create your-app-name
 heroku stack:set container
 ```
 
 2. Push to Heroku:
+
 ```bash
 git push heroku main
 ```
 
 3. Set environment variables:
+
 ```bash
 heroku config:set JWT_SECRET_KEY=your-secret-key
 heroku config:set SECRET_KEY=your-secret-key
