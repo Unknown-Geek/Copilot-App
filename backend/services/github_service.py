@@ -123,12 +123,11 @@ class GitHubService:
         if cached and current_time < cached.expires_at:
             return cached.data
         
-        # Fetch from GitHub API
-        headers = {'Authorization': f'token {self.token}'}
+        # Fetch from GitHub API using pre-configured headers
         repo_url = f"{self.base_url}/repos/{owner}/{repo}"
         
         try:
-            response = requests.get(repo_url, headers=headers, timeout=10)
+            response = requests.get(repo_url, headers=self.headers, timeout=10)
             if response.status_code == 401:
                 return {'error': 'Invalid GitHub credentials'}
             response.raise_for_status()
